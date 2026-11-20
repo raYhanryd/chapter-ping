@@ -30,7 +30,7 @@ describe("buildChapterPayload", () => {
     expect(embed.description).toContain("One Piece");
     expect(embed.color).toBe(0xe67e22);
     expect(embed.timestamp).toBe(now.toISOString());
-    expect(embed.footer.text).toBe("Chapter Tracker");
+    expect(embed.footer.text).toBe("Chapter Ping");
   });
 
   it("marks test sends and keeps them out of chapter state", () => {
@@ -38,6 +38,6 @@ describe("buildChapterPayload", () => {
     const embed = payload.embeds[0]!;
     expect(embed.title.startsWith("[TEST]")).toBe(true);
     expect(embed.color).toBe(0xe67e22);
-    expect(embed.footer.text).toBe("Chapter Tracker");
+    expect(embed.footer.text).toBe("Chapter Ping");
   });
 });

@@ -3,7 +3,7 @@ import { Page } from "../components/ui";
 
 export function NotFound() {
   return (
-    <Page title="Page not found" intro="That address does not lead to a page in Chapter Tracker.">
+    <Page title="Page not found" intro="That address does not lead to a page in Chapter Ping.">
       <Link className="btn btn-secondary" to="/dashboard">
         Back to your series
       </Link>

@@ -1,17 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { ConfirmDialog, ErrorBlock, LoadingRows, Page } from "../components/ui";
 import { api } from "../lib/api";
 import { formatDate } from "../lib/format";
 import { useMe } from "../lib/queries";
 
-const REPO = "https://github.com/raYhanryd/chapter-tracker-web";
+const REPO = "https://github.com/raYhanryd/chapter-ping";
 
 export function Settings() {
   const me = useMe();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { markSessionEnding } = useOutletContext<{ markSessionEnding: () => void }>();
   const [deleting, setDeleting] = useState(false);
 
   if (me.isPending) {
@@ -35,8 +36,9 @@ export function Settings() {
 
   async function deleteAccount() {
     await api.deleteAccount("DELETE");
+    markSessionEnding();
     queryClient.clear();
-    navigate("/");
+    navigate("/", { replace: true });
   }
 
   return (

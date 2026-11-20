@@ -119,9 +119,11 @@ export async function pollDueSeries(
         env.DB.prepare(
           `INSERT OR IGNORE INTO deliveries
              (id, chapter_id, destination_id, status, attempts, created_at, updated_at)
-           SELECT lower(hex(randomblob(16))), ?, s.destination_id, 'pending', 0, ?, ?
-           FROM subscriptions s WHERE s.series_id = ? AND s.active = 1`,
-        ).bind(chapterId, nowIso, nowIso, series.id),
+           SELECT lower(hex(randomblob(16))), ch.id, s.destination_id, 'pending', 0, ?, ?
+           FROM chapters ch
+           JOIN subscriptions s ON s.series_id = ch.series_id AND s.active = 1
+           WHERE ch.series_id = ? AND ch.chapter_number = ?`,
+        ).bind(nowIso, nowIso, series.id, latest.number),
       ]);
 
       chaptersFound += 1;

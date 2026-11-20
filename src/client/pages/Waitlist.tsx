@@ -24,7 +24,7 @@ export function Waitlist() {
     <div className="auth-shell">
       <header className="site-head">
         <Link className="wordmark" to="/">
-          Chapter Tracker
+          Chapter Ping
         </Link>
       </header>
 

@@ -1,5 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // Kept stable so the live URL, Discord callback, and D1 data do not move.
   "name": "chapter-tracker-web",
   "main": "src/worker/index.ts",
   "compatibility_date": "2025-10-01",
@@ -23,6 +24,7 @@
     "enabled": true
   },
   "vars": {
+    // Product name is Chapter Ping; this URL changes only at a controlled cutover.
     "APP_URL": "https://chapter-tracker-web.chapterping.workers.dev",
     "ENVIRONMENT": "production",
     "MAX_ACCOUNTS": "100",

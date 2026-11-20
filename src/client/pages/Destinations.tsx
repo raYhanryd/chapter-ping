@@ -213,7 +213,7 @@ function DestinationDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!webhookUrl.trim()) {
+    if (!destination && !webhookUrl.trim()) {
       setError("Paste the Discord webhook URL.");
       return;
     }

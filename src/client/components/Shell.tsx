@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiClientError } from "../lib/api";
 import { useMe } from "../lib/queries";
@@ -29,6 +29,10 @@ export function AppShell() {
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const endingSession = useRef(false);
+  const markSessionEnding = useCallback(() => {
+    endingSession.current = true;
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -47,6 +51,7 @@ export function AppShell() {
     return cache.subscribe((event) => {
       if (event.type !== "updated" || event.action.type !== "error") return;
       const error = event.action.error;
+      if (endingSession.current) return;
       if (!(error instanceof ApiClientError) || error.status !== 401) return;
 
       queryClient.removeQueries();
@@ -58,8 +63,11 @@ export function AppShell() {
   const signOut = useMutation({
     mutationFn: api.signOut,
     onSuccess: () => {
+      // Mark the session end before clearing; otherwise the shell's 401 handler
+      // can redirect to /login while the intentional sign-out is still settling.
+      markSessionEnding();
       queryClient.clear();
-      navigate("/");
+      navigate("/", { replace: true });
     },
     onError: () => toast("Could not sign out. Try again."),
   });
@@ -73,6 +81,13 @@ export function AppShell() {
   }
 
   if (me.isError) {
+    if (endingSession.current) {
+      return (
+        <div className="app-loading" aria-busy="true" aria-label="Signing out">
+          <div className="skeleton-page" />
+        </div>
+      );
+    }
     if (me.error instanceof ApiClientError && me.error.status === 401) {
       const next = `${location.pathname}${location.search}`;
       return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
@@ -90,7 +105,7 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="rail">
         <NavLink className="wordmark" to="/dashboard">
-          Chapter Tracker
+          Chapter Ping
         </NavLink>
 
         <nav className="rail-nav" aria-label="Primary">
@@ -139,7 +154,7 @@ export function AppShell() {
       </aside>
 
       <main className="page">
-        <Outlet />
+        <Outlet context={{ markSessionEnding }} />
       </main>
 
       <nav className="mobile-nav" aria-label="Mobile">

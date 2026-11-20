@@ -196,6 +196,44 @@ describe("series add", () => {
     expect(((await blocked.json()) as { error: { code: string } }).error.code).toBe("SERIES_LIMIT");
   });
 
+  it("does not count paused series toward the per-user cap", async () => {
+    const { user, destinationId } = await seedUser();
+    const env: Env = { ...testDb.env, MAX_SERIES_PER_USER: "2" };
+    const app = appFor(user, env);
+    const firstUrl = "https://weebcentral.com/series/PAUSED01AAA/Test";
+    expect((await addSeries(app, firstUrl, destinationId)).status).toBe(201);
+    expect(
+      (await addSeries(app, "https://weebcentral.com/series/PAUSED02AAA/Test", destinationId)).status,
+    ).toBe(201);
+
+    const list = (await (await app.request("/api/series")).json()) as { items: { id: string; title: string }[] };
+    const paused = list.items.find((item) => item.title === "Test Series");
+    expect(paused).toBeTruthy();
+    const pause = await app.request(`/api/series/${paused!.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: false }),
+    });
+    expect(pause.status).toBe(200);
+
+    const added = await addSeries(
+      app,
+      "https://weebcentral.com/series/PAUSED03AAA/Test",
+      destinationId,
+    );
+    expect(added.status).toBe(201);
+  });
+
+  it("allows another user to join an existing series at the global cap", async () => {
+    const first = await seedUser();
+    const second = await seedUser();
+    const env: Env = { ...testDb.env, MAX_ACTIVE_SERIES: "1" };
+    const url = "https://weebcentral.com/series/SHAREDCAP01/Test";
+
+    expect((await addSeries(appFor(first.user, env), url, first.destinationId)).status).toBe(201);
+    expect((await addSeries(appFor(second.user, env), url, second.destinationId)).status).toBe(201);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series")).toBe(1);
+  });
+
   it("enforces the global active-series cap", async () => {
     const first = await seedUser();
     const second = await seedUser();
@@ -245,6 +283,7 @@ describe("series list, pause and remove", () => {
     expect(
       await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions WHERE id = ? AND active = 0", subscriptionId),
     ).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series WHERE active = 1")).toBe(1);
 
     const resumed = await appFor(first.user).request(`/api/series/${subscriptionId}`, {
       method: "PATCH",
@@ -257,6 +296,30 @@ describe("series list, pause and remove", () => {
     expect(removed.status).toBe(204);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = ?", first.user.id)).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = ?", second.user.id)).toBe(1);
+  });
+
+  it("deactivates a series when its last subscriber pauses", async () => {
+    const { user, destinationId } = await seedUser();
+    const app = appFor(user);
+    await addSeries(app, "https://weebcentral.com/series/LASTPAUSE01/Test", destinationId);
+
+    const list = (await (await app.request("/api/series")).json()) as { items: { id: string }[] };
+    const subscriptionId = list.items[0]?.id;
+    expect(subscriptionId).toBeTruthy();
+
+    const paused = await app.request(`/api/series/${subscriptionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: false }),
+    });
+    expect(paused.status).toBe(200);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series WHERE active = 0")).toBe(1);
+
+    const resumed = await app.request(`/api/series/${subscriptionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: true }),
+    });
+    expect(resumed.status).toBe(200);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series WHERE active = 1")).toBe(1);
   });
 
   it("returns 404 when pausing another user's subscription", async () => {

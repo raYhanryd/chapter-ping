@@ -7,7 +7,7 @@ function cutoff(now: Date, days: number): string {
 export async function cleanup(db: D1Database, now: Date): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM job_runs WHERE started_at < ?").bind(cutoff(now, ACTIVITY_RETENTION_DAYS)),
-    db.prepare("DELETE FROM deliveries WHERE status IN ('sent', 'failed') AND updated_at < ?").bind(
+    db.prepare("DELETE FROM deliveries WHERE status IN ('sent', 'failed', 'skipped') AND updated_at < ?").bind(
       cutoff(now, ACTIVITY_RETENTION_DAYS),
     ),
     db.prepare("DELETE FROM waitlist WHERE created_at < ?").bind(cutoff(now, WAITLIST_RETENTION_DAYS)),

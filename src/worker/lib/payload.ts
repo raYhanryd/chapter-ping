@@ -44,7 +44,7 @@ export function buildChapterPayload({
         description: `A new chapter of ${seriesTitle} is out.`,
         color: EMBED_COLOR,
         timestamp: now.toISOString(),
-        footer: { text: "Chapter Tracker" },
+        footer: { text: "Chapter Ping" },
       },
     ],
   };
@@ -55,11 +55,11 @@ export function buildTestPayload({ roleId, now }: { roleId: string | null; now: 
     ...roleFields(roleId),
     embeds: [
       {
-        title: "[TEST] Chapter Tracker is connected",
+        title: "[TEST] Chapter Ping is connected",
         description: "This channel will get a message when a tracked series gets a new chapter.",
         color: EMBED_COLOR,
         timestamp: now.toISOString(),
-        footer: { text: "Chapter Tracker" },
+        footer: { text: "Chapter Ping" },
       },
     ],
   };

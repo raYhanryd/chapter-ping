@@ -59,6 +59,18 @@ describe("dashboard", () => {
     expect(screen.getByText(/1 of 5 series\. 3 of 100 launch spots in use\./)).toBeTruthy();
   });
 
+  it("counts only active series against the capacity line", async () => {
+    dashboard([
+      SERIES_ITEM,
+      { ...SERIES_ITEM, id: "sub2", seriesId: "s2", title: "Paused series", active: false },
+    ]);
+
+    renderApp("/dashboard");
+
+    expect(await screen.findByText("Paused series")).toBeTruthy();
+    expect(screen.getByText(/1 of 5 series\. 3 of 100 launch spots in use\./)).toBeTruthy();
+  });
+
   it("invites the first series when the list is empty", async () => {
     dashboard([]);
 

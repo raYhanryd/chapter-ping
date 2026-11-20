@@ -4,7 +4,7 @@ This is a draft for the operator to review before a public launch.
 
 ## The service
 
-Chapter Tracker Web is a free, best-effort notification service. It watches public weebcentral RSS feeds you ask it to watch and posts a Discord embed to webhooks you control when it detects a new chapter.
+Chapter Ping is a free, best-effort notification service. It watches public weebcentral RSS feeds you ask it to watch and posts a Discord embed to webhooks you control when it detects a new chapter.
 
 ## No SLA
 
@@ -32,4 +32,4 @@ The operator may change limits, features, or these terms, and may suspend accoun
 
 ## Contact
 
-Open an issue at <https://github.com/raYhanryd/chapter-tracker-web/issues>.
+Open an issue at <https://github.com/raYhanryd/chapter-ping/issues>.

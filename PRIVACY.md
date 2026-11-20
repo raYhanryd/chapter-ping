@@ -42,6 +42,6 @@ No sale of data. Data is shared only with Cloudflare (hosting and storage), Disc
 
 ## Contact
 
-Open an issue at <https://github.com/raYhanryd/chapter-tracker-web/issues>.
+Open an issue at <https://github.com/raYhanryd/chapter-ping/issues>.
 
 Not affiliated with Discord or weebcentral.

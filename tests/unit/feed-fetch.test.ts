@@ -29,7 +29,7 @@ describe("fetchFeed", () => {
     expect(headers.get("if-none-match")).toBe('"old"');
     expect(headers.get("if-modified-since")).toBe("Wed, 19 Nov 2026 00:00:00 GMT");
     expect(headers.get("accept")).toContain("application/rss+xml");
-    expect(headers.get("user-agent")).toContain("ChapterTracker");
+    expect(headers.get("user-agent")).toContain("ChapterPing");
   });
 
   it("reports not-modified without a body", async () => {

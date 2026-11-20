@@ -1,7 +1,7 @@
 import { ApiError } from "./errors";
 import { FEED_TIMEOUT_MS, isAllowedFeedUrl } from "./weebcentral";
 
-const USER_AGENT = "ChapterTrackerWeb/0.1 (+https://github.com/raYhanryd/chapter-tracker-web)";
+const USER_AGENT = "ChapterPing/0.1 (+https://github.com/raYhanryd/chapter-ping)";
 const ACCEPT = "application/rss+xml, application/xml, text/xml";
 
 export interface FeedFetchOptions {

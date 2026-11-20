@@ -167,6 +167,16 @@ seriesRoutes.post("/series", async (c) => {
     throw new ApiError("DESTINATION_DISABLED", "That destination is disabled. Replace its webhook first.", 409);
   }
 
+  const existing = await c.env.DB.prepare(
+    "SELECT id, active FROM series WHERE source = 'weebcentral' AND external_id = ?",
+  )
+    .bind(parsed.externalId)
+    .first<{ id: string; active: number }>();
+
+  if (existing && (await findSubscription(c.env.DB, user.id, existing.id))) {
+    throw new ApiError("SERIES_ALREADY_TRACKED", "You already track this series.", 409);
+  }
+
   const config = readConfig(c.env);
   const [userSeries, globalActive, accounts] = await Promise.all([
     userSeriesCount(c.env.DB, user.id),
@@ -181,7 +191,7 @@ seriesRoutes.post("/series", async (c) => {
       409,
     );
   }
-  if (globalActive >= config.maxActiveSeries) {
+  if ((!existing || existing.active === 0) && globalActive >= config.maxActiveSeries) {
     throw new ApiError("SERIES_CAPACITY_REACHED", "Tracked-series capacity is full right now. Try again later.", 409);
   }
   if (accounts >= config.maxAccounts && userSeries === 0) {
@@ -196,15 +206,6 @@ seriesRoutes.post("/series", async (c) => {
   const feed = await loadFeed(parsed.feedUrl);
   const now = new Date();
   const nowIso = now.toISOString();
-  const existing = await c.env.DB.prepare(
-    "SELECT id FROM series WHERE source = 'weebcentral' AND external_id = ?",
-  )
-    .bind(parsed.externalId)
-    .first<{ id: string }>();
-
-  if (existing && (await findSubscription(c.env.DB, user.id, existing.id))) {
-    throw new ApiError("SERIES_ALREADY_TRACKED", "You already track this series.", 409);
-  }
 
   // The conflict clauses make a concurrent add converge on one series and one
   // subscription instead of failing on the unique indexes.
@@ -300,10 +301,11 @@ seriesRoutes.patch("/series/:id", async (c) => {
       c.req.param("id"),
       user.id,
     ),
-    // A paused series may have been deactivated when its last subscriber left.
-    ...(active
-      ? [c.env.DB.prepare("UPDATE series SET active = 1, updated_at = ? WHERE id = ?").bind(nowIso, existing.series_id)]
-      : []),
+    c.env.DB.prepare(
+      `UPDATE series SET active = CASE WHEN EXISTS (
+         SELECT 1 FROM subscriptions WHERE series_id = ? AND active = 1
+       ) THEN 1 ELSE 0 END, updated_at = ? WHERE id = ?`,
+    ).bind(existing.series_id, nowIso, existing.series_id),
   ]);
 
   return c.json({ subscription: { id: c.req.param("id"), active } });

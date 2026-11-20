@@ -1,20 +1,23 @@
-# Chapter Tracker Web
+# Chapter Ping
 
-A free, capacity-capped, multi-series manga chapter tracker for Discord. Sign in with Discord, paste a weebcentral series link, point it at your own webhook, and get one clean embed when a new chapter lands.
+A free, capacity-capped, multi-series manga chapter alert service for Discord. Sign in with Discord, paste a weebcentral series link, point it at your own webhook, and get one clean embed when a new chapter lands.
 
 > **Do not point this app at the same Discord webhook as the older `onepiece-tracker` GitHub Action.** Two independent notifiers on one webhook means duplicate alerts.
 
-Free while launch capacity lasts. No card, no ads, no paid tier.
+Free while launch capacity lasts. No card, no ads, no paid tier. Free-domain options are in [`docs/DOMAINS.md`](docs/DOMAINS.md).
 
 ## Status
 
 Milestone 5 (editorial UI) is built and reviewed. Milestone 6 (launch) is live at <https://chapter-tracker-web.chapterping.workers.dev>; production D1 is migrated and the cron has run successfully. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. The remaining live checks are Discord sign-in (after adding the production callback) and a real webhook test send.
 
+The live Worker and D1 database keep their original internal names (`chapter-tracker-web`) so the current URL, data, and Discord callback stay stable. Chapter Ping is the product name; renaming those resources is a separate deploy-time cutover.
+
 Build docs live in the repo:
 
-- `docs/AGENT_BUILD_PROMPT.txt` - the original brief
-- `docs/superpowers/specs/2026-11-20-chapter-tracker-web-design.md` - design
-- `docs/superpowers/plans/2026-11-20-chapter-tracker-web.md` - milestone plan
+- `docs/AGENT_BUILD_PROMPT.txt` - the original brief (historical; written before the rename)
+- `docs/superpowers/specs/2026-11-20-chapter-ping-design.md` - design
+- `docs/superpowers/plans/2026-11-20-chapter-ping.md` - milestone plan
+- `docs/DOMAINS.md` - free-domain options and lengths
 
 ## Free-tier capacity model
 
@@ -72,7 +75,7 @@ No bot token, no bot permissions, no privileged intents.
 ### D1 and migrations
 
 ```bash
-npx wrangler d1 create chapter-tracker-web      # copy database_id into wrangler.jsonc
+npx wrangler d1 create chapter-tracker-web      # internal name kept stable; copy database_id into wrangler.jsonc
 npm run db:migrate:local
 npm run db:migrate:remote
 ```

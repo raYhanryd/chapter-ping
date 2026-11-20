@@ -4,7 +4,7 @@ import type { DiscordWebhookBody } from "./payload";
 export const DISCORD_WEBHOOK_HOSTS = ["discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"] as const;
 export const WEBHOOK_TIMEOUT_MS = 10_000;
 
-const USER_AGENT = "ChapterTrackerWeb/0.1 (+https://github.com/raYhanryd/chapter-tracker-web)";
+const USER_AGENT = "ChapterPing/0.1 (+https://github.com/raYhanryd/chapter-ping)";
 const SNOWFLAKE = /^\d{17,20}$/;
 const TOKEN = /^[A-Za-z0-9_-]{5,120}$/;
 

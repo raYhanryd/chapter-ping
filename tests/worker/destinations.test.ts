@@ -270,7 +270,7 @@ describe("destination test send", () => {
     expect(sentBodies).toHaveLength(1);
     const payload = sentBodies[0] as { embeds: { title: string; footer: { text: string } }[] };
     expect(payload.embeds[0]?.title.startsWith("[TEST]")).toBe(true);
-    expect(payload.embeds[0]?.footer.text).toBe("Chapter Tracker");
+    expect(payload.embeds[0]?.footer.text).toBe("Chapter Ping");
 
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM chapters")).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries")).toBe(0);

@@ -1,4 +1,4 @@
--- Migration number: 0001 	 App tables for Chapter Tracker Web
+-- Migration number: 0001 	 App tables for Chapter Ping
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS series (

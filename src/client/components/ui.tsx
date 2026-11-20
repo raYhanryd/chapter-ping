@@ -61,9 +61,10 @@ export function CapacityLine() {
   const series = useSeries();
   if (!me.data || !series.data) return null;
   const { capacity } = me.data;
+  const activeSeries = series.data.items.filter((item) => item.active).length;
   return (
     <p className="capacity num">
-      {series.data.items.length} of {capacity.seriesPerUser} series. {capacity.accountsUsed} of{" "}
+      {activeSeries} of {capacity.seriesPerUser} series. {capacity.accountsUsed} of{" "}
       {capacity.accountsMax} launch spots in use.
     </p>
   );

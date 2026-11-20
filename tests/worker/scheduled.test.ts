@@ -106,18 +106,21 @@ async function seedActivityRows(): Promise<void> {
     .bind(seriesId, crypto.randomUUID(), FEED_URL, now, now, now)
     .run();
 
+  let chapterNumber = 0;
   for (const [index, status, updated] of [
     ["old-sent", "sent", old],
     ["old-failed", "failed", old],
+    ["old-skipped", "skipped", old],
     ["recent-sent", "sent", now],
     ["old-retry", "retry", old],
   ] as const) {
+    chapterNumber += 1;
     const chapterId = crypto.randomUUID();
     await testDb.db
       .prepare(
         "INSERT INTO chapters (id, series_id, chapter_number, chapter_label, title, url, discovered_at) VALUES (?, ?, ?, ?, 't', 'u', ?)",
       )
-      .bind(chapterId, seriesId, index.length + seq, index, now)
+      .bind(chapterId, seriesId, chapterNumber, index, now)
       .run();
     await testDb.db
       .prepare(
@@ -209,6 +212,7 @@ describe("cleanup", () => {
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM waitlist")).toBe(1);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries")).toBe(2);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries WHERE status = 'retry'")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries WHERE status = 'skipped'")).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series")).toBe(1);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM rate_limits")).toBe(1);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM rate_limits WHERE key = 'live-limit'")).toBe(1);

@@ -14,7 +14,7 @@ export function accountCount(db: D1Database): Promise<number> {
 }
 
 export function userSeriesCount(db: D1Database, userId: string): Promise<number> {
-  return scalar(db, "SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = ?", userId);
+  return scalar(db, "SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = ? AND active = 1", userId);
 }
 
 export function userDestinationCount(db: D1Database, userId: string): Promise<number> {

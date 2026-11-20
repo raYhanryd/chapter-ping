@@ -140,6 +140,36 @@ describe("destinations", () => {
       roleId: "123456789012345678",
     });
   });
+
+  it("updates a replacement destination without requiring a new webhook", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubApi(({ method, url }) => {
+      if (method === "GET" && url.pathname === "/api/me") return jsonResponse(ME);
+      if (method === "GET" && url.pathname === "/api/destinations") return jsonResponse({ destinations: [DESTINATION] });
+      if (method === "PATCH" && url.pathname === "/api/destinations/d1")
+        return jsonResponse({ destination: { ...DESTINATION, label: "Renamed" } });
+      return undefined;
+    });
+
+    renderApp("/destinations");
+    await screen.findByText("Main channel");
+    await user.click(screen.getByRole("button", { name: "Replace webhook for Main channel" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Replace webhook" });
+    await user.clear(within(dialog).getByLabelText("Label"));
+    await user.type(within(dialog).getByLabelText("Label"), "Renamed");
+    await user.click(within(dialog).getByRole("button", { name: "Save destination" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Replace webhook" })).toBeNull());
+    const save = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input) === "/api/destinations/d1" && (init as RequestInit | undefined)?.method === "PATCH",
+    );
+    expect(JSON.parse(String((save?.[1] as RequestInit).body))).toEqual({
+      label: "Renamed",
+      roleId: "123456789012345678",
+    });
+  });
 });
 
 describe("activity", () => {

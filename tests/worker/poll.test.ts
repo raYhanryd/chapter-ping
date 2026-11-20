@@ -153,6 +153,24 @@ describe("pollDueSeries", () => {
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries")).toBe(1);
   });
 
+  it("reuses an existing chapter row when the series pointer is stale", async () => {
+    const user = await seedUser();
+    const seriesId = await seedSeries();
+    await subscribe(seriesId, await seedDestination(user), user);
+
+    await pollDueSeries(env(), NOW, mockFeed());
+    await testDb.db
+      .prepare("UPDATE series SET latest_chapter_number = 12, next_check_at = ? WHERE id = ?")
+      .bind(NOW.toISOString(), seriesId)
+      .run();
+
+    const second = await pollDueSeries(env(), new Date(NOW.getTime() + 60_000), mockFeed());
+
+    expect(second).toEqual({ checked: 1, chaptersFound: 1, errors: 0 });
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM chapters")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries")).toBe(1);
+  });
+
   it("handles 304 by touching only last_checked_at", async () => {
     const user = await seedUser();
     const seriesId = await seedSeries();

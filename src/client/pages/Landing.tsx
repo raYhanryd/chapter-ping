@@ -1,7 +1,7 @@
 import { Link, Navigate } from "react-router-dom";
 import { useDiscordSignIn, useMe, useStatus } from "../lib/queries";
 
-const REPO = "https://github.com/raYhanryd/chapter-tracker-web";
+const REPO = "https://github.com/raYhanryd/chapter-ping";
 
 export function Landing() {
   const me = useMe();
@@ -14,7 +14,7 @@ export function Landing() {
     <div className="landing-shell">
       <header className="site-head">
         <Link className="wordmark" to="/">
-          Chapter Tracker
+          Chapter Ping
         </Link>
         <Link className="quiet-link" to="/login">
           Sign in
@@ -26,7 +26,7 @@ export function Landing() {
           <div className="landing-copy">
             <h1 className="landing-title">Chapter alerts that land in Discord</h1>
             <p className="landing-lede">
-              Track the series you read on weebcentral. When a new chapter appears, Chapter Tracker posts
+              Track the series you read on weebcentral. When a new chapter appears, Chapter Ping posts
               it to your channel. No refresh loop, no feeds to babysit.
             </p>
 

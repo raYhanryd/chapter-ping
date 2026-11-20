@@ -1,9 +1,9 @@
 {
-  "name": "chapter-tracker-web",
+  "name": "chapter-ping",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A free, multi-series manga chapter tracker for Discord.",
+  "description": "A free, multi-series manga chapter alert service for Discord.",
   "engines": {
     "node": ">=22"
   },
