@@ -1,11 +1,14 @@
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { Env } from "./env";
 import { AuthConfigError, createAuth } from "./auth";
 import { accountRoutes } from "./api/account";
+import { activityRoutes } from "./api/activity";
 import { meRoutes } from "./api/me";
 import { destinationRoutes } from "./api/destinations";
 import { seriesRoutes } from "./api/series";
 import { ApiError, toErrorBody } from "./lib/errors";
+import { runScheduled } from "./jobs";
 import { readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
 import { resolveSessionUser, type AppEnv, type SessionUser } from "./lib/session";
@@ -93,6 +96,7 @@ export function createApp(options: AppOptions = {}) {
   app.route("/api", accountRoutes);
   app.route("/api", seriesRoutes);
   app.route("/api", destinationRoutes);
+  app.route("/api", activityRoutes);
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
@@ -111,4 +115,13 @@ export function createApp(options: AppOptions = {}) {
   return app;
 }
 
-export default createApp();
+const app = createApp();
+
+const worker: ExportedHandler<Env> = {
+  fetch: app.fetch,
+  scheduled(_controller, env, ctx) {
+    ctx.waitUntil(runScheduled(env, fetch));
+  },
+};
+
+export default worker;

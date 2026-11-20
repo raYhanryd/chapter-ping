@@ -128,5 +128,10 @@ export async function sendWebhook(
   if (response.status === 401 || response.status === 403 || response.status === 404) {
     throw new ApiError("WEBHOOK_DEAD", "Discord rejected this webhook. Replace it to keep alerts.", 502);
   }
+  if (response.status === 429) {
+    const header = response.headers.get("retry-after");
+    const seconds = header !== null && /^\d+$/.test(header) ? Number(header) : undefined;
+    throw new ApiError("WEBHOOK_UNAVAILABLE", "Discord is rate limiting messages. We will retry.", 429, undefined, seconds);
+  }
   throw unavailable();
 }

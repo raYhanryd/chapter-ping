@@ -39,13 +39,16 @@ export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly field?: string;
+  /** Seconds Discord asked us to wait, when a webhook send is rate limited. */
+  readonly retryAfterSeconds?: number;
 
-  constructor(code: ErrorCode, message: string, status = 400, field?: string) {
+  constructor(code: ErrorCode, message: string, status = 400, field?: string, retryAfterSeconds?: number) {
     super(sanitizeMessage(message));
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     if (field !== undefined) this.field = field;
+    if (retryAfterSeconds !== undefined) this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
