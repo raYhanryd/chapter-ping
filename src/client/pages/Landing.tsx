@@ -44,9 +44,11 @@ export function Landing() {
             ) : null}
 
             <p className="capacity num">
-              {status.data
-                ? `${status.data.accountsUsed} of ${status.data.accountsMax} launch spots in use.`
-                : "Checking availability…"}
+              {status.isError
+                ? "Capacity is unavailable right now."
+                : status.data
+                  ? `${status.data.accountsUsed} of ${status.data.accountsMax} launch spots in use.`
+                  : "Checking availability…"}
             </p>
           </div>
 

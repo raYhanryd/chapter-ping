@@ -39,6 +39,22 @@ export function AppShell() {
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [menuOpen]);
 
+  // Any data query that loses its session goes through the same login redirect,
+  // not just the /api/me query. Clearing the cache prevents stale account data
+  // from being shown after the next sign-in.
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    return cache.subscribe((event) => {
+      if (event.type !== "updated" || event.action.type !== "error") return;
+      const error = event.action.error;
+      if (!(error instanceof ApiClientError) || error.status !== 401) return;
+
+      queryClient.removeQueries();
+      const next = `${location.pathname}${location.search}`;
+      navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
+    });
+  }, [queryClient, navigate, location.pathname, location.search]);
+
   const signOut = useMutation({
     mutationFn: api.signOut,
     onSuccess: () => {

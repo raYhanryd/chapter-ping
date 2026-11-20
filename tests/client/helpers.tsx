@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { vi } from "vitest";
 import { AppRoutes } from "../../src/client/App";
 
@@ -56,6 +56,17 @@ export function stubApi(
   return fetchMock;
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <div
+      data-testid="location"
+      data-pathname={location.pathname}
+      data-next={new URLSearchParams(location.search).get("next") ?? ""}
+    />
+  );
+}
+
 export function renderApp(route = "/"): ReturnType<typeof render> {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -66,6 +77,7 @@ export function renderApp(route = "/"): ReturnType<typeof render> {
   const ui: ReactElement = (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
+        <LocationProbe />
         <AppRoutes />
       </MemoryRouter>
     </QueryClientProvider>

@@ -1,4 +1,5 @@
 import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { safeNextPath } from "../lib/navigation";
 import { useDiscordSignIn, useMe } from "../lib/queries";
 
 export function Login() {
@@ -6,8 +7,7 @@ export function Login() {
   const [params] = useSearchParams();
   const signIn = useDiscordSignIn();
   const failed = params.has("error");
-  const requested = params.get("next");
-  const next = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/dashboard";
+  const next = safeNextPath(params.get("next"));
 
   if (me.isSuccess) return <Navigate to={next} replace />;
 

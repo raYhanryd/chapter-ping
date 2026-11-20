@@ -26,6 +26,19 @@ describe("landing and login", () => {
     expect(screen.getByText("Example alert")).toBeTruthy();
   });
 
+  it("does not leave the capacity line spinning when status fails", async () => {
+    stubApi(({ method, url }) => {
+      if (method === "GET" && url.pathname === "/api/me") return errorResponse(401, "UNAUTHORIZED", "Sign in.");
+      if (method === "GET" && url.pathname === "/api/status") return errorResponse(503, "SERVICE_UNAVAILABLE", "Down.");
+      return undefined;
+    });
+
+    renderApp("/");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Chapter alerts that land in Discord" })).toBeTruthy();
+    expect(await screen.findByText("Capacity is unavailable right now.")).toBeTruthy();
+  });
+
   it("sends a signed-in visitor to the dashboard", async () => {
     stubApi(({ method, url }) => {
       if (method === "GET" && url.pathname === "/api/me") return jsonResponse(ME);
@@ -48,6 +61,26 @@ describe("landing and login", () => {
     renderApp("/settings");
 
     expect(await screen.findByRole("heading", { name: "Sign in with Discord" })).toBeTruthy();
+  });
+
+  it("sends a 401 from a data query to login with the current path", async () => {
+    let expired = false;
+    stubApi(({ method, url }) => {
+      if (method === "GET" && url.pathname === "/api/me")
+        return expired ? errorResponse(401, "UNAUTHORIZED", "Session expired.") : jsonResponse(ME);
+      if (method === "GET" && url.pathname === "/api/series") {
+        expired = true;
+        return errorResponse(401, "UNAUTHORIZED", "Session expired.");
+      }
+      return undefined;
+    });
+
+    renderApp("/dashboard");
+
+    expect(await screen.findByRole("heading", { name: "Sign in with Discord" })).toBeTruthy();
+    const location = screen.getByTestId("location");
+    expect(location.dataset.pathname).toBe("/login");
+    expect(location.dataset.next).toBe("/dashboard");
   });
 
   it("shows a generic login error without echoing the provider detail", async () => {

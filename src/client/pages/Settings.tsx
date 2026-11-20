@@ -31,6 +31,7 @@ export function Settings() {
   }
 
   const { user, capacity, createdAt } = me.data;
+  const displayName = user.name || "Discord member";
 
   async function deleteAccount() {
     await api.deleteAccount("DELETE");
@@ -47,11 +48,11 @@ export function Settings() {
             <img className="avatar avatar-lg" src={user.image} alt="" width={44} height={44} />
           ) : (
             <span className="avatar avatar-lg avatar-fallback" aria-hidden="true">
-              {user.name.slice(0, 1).toUpperCase()}
+              {displayName.slice(0, 1).toUpperCase()}
             </span>
           )}
           <div>
-            <p className="identity-name">{user.name || "Discord member"}</p>
+            <p className="identity-name">{displayName}</p>
             <p className="identity-meta">Joined {formatDate(createdAt)}</p>
           </div>
         </div>
