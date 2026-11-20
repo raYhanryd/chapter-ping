@@ -8,7 +8,7 @@ Free while launch capacity lasts. No card, no ads, no paid tier.
 
 ## Status
 
-Milestone 5 (editorial UI) is built and reviewed. Milestone 6 (launch) is in progress: production D1 is created and migrated, and deployment is waiting on the public URL. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
+Milestone 5 (editorial UI) is built and reviewed. Milestone 6 (launch) is live at <https://chapter-tracker-web.chapterping.workers.dev>; production D1 is migrated and the cron has run successfully. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. The remaining live checks are Discord sign-in (after adding the production callback) and a real webhook test send.
 
 Build docs live in the repo:
 

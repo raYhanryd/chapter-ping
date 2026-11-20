@@ -23,8 +23,8 @@
     "enabled": true
   },
   "vars": {
-    "APP_URL": "http://localhost:8787",
-    "ENVIRONMENT": "development",
+    "APP_URL": "https://chapter-tracker-web.chapterping.workers.dev",
+    "ENVIRONMENT": "production",
     "MAX_ACCOUNTS": "100",
     "MAX_SERIES_PER_USER": "5",
     "MAX_DESTINATIONS_PER_USER": "2",
