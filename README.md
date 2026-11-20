@@ -8,7 +8,7 @@ Free while launch capacity lasts. No card, no ads, no paid tier.
 
 ## Status
 
-Milestone 5 (editorial UI) is built and awaiting the operator's desktop/mobile review. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
+Milestone 5 (editorial UI) is built and reviewed. Milestone 6 (launch) is in progress: production D1 is created and migrated, and deployment is waiting on the public URL. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
 
 Build docs live in the repo:
 
@@ -34,6 +34,8 @@ Default caps, all set by environment variables:
 Arithmetic: 150 series at 30 minutes is 300 feed checks/hour. The cron runs every 5 minutes with a 20-feed batch, so 240 checks/hour; sustained maximum load stretches the effective interval to about 37.5 minutes. 100 users at roughly 20 requests/day is about 2,000 Worker requests/day plus 288 cron invocations.
 
 Cloudflare free limits that shape this: 100,000 Worker requests/day, 10 ms CPU per invocation, 50 subrequests, 50 D1 queries per invocation, 5M D1 rows read/day and 100,000 written/day. Static asset requests do not count as Worker requests. Exceeding a daily limit fails requests until the 00:00 UTC reset.
+
+The measured local batch and the 49-query cron budget are in [`docs/CAPACITY.md`](docs/CAPACITY.md). Run it with `npm run load-test`.
 
 Capacity is finite and there is no SLA. When the account cap is reached, a first series add is refused and the account joins the waitlist; existing users keep working.
 

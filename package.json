@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "load-test": "node scripts/load-test.mjs",
     "docs": "node scripts/docs.mjs",
     "setup:discord": "node scripts/set-discord.mjs",
     "db:generate": "drizzle-kit generate",

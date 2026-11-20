@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "chapter-tracker-web",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "8417fc6f-4cc9-4578-8f53-9c8b94a3a598"
     }
   ],
   "triggers": {

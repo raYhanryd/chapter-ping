@@ -1,6 +1,6 @@
 # Privacy Policy (draft)
 
-This is a draft for the operator to review before a public launch. Replace the contact placeholder.
+This is a draft for the operator to review before a public launch.
 
 ## What is collected
 
@@ -42,6 +42,6 @@ No sale of data. Data is shared only with Cloudflare (hosting and storage), Disc
 
 ## Contact
 
-`<operator contact placeholder>`
+Open an issue at <https://github.com/raYhanryd/chapter-tracker-web/issues>.
 
 Not affiliated with Discord or weebcentral.

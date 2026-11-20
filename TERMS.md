@@ -1,6 +1,6 @@
 # Terms of Service (draft)
 
-This is a draft for the operator to review before a public launch. Replace the contact placeholder.
+This is a draft for the operator to review before a public launch.
 
 ## The service
 
@@ -32,4 +32,4 @@ The operator may change limits, features, or these terms, and may suspend accoun
 
 ## Contact
 
-`<operator contact placeholder>`
+Open an issue at <https://github.com/raYhanryd/chapter-tracker-web/issues>.
