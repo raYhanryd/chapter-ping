@@ -50,7 +50,7 @@ async function seedAccount(): Promise<Account> {
 async function addDelivery(
   account: Account,
   options: { status?: string; createdAt?: string; sentAt?: string | null } = {},
-): Promise<string> {
+): Promise<{ id: string; seriesId: string; chapterId: string }> {
   const id = crypto.randomUUID();
   const now = NOW.toISOString();
   const createdAt = options.createdAt ?? now;
@@ -74,7 +74,7 @@ async function addDelivery(
     )
     .bind(id, chapterId, account.destinationId, options.status ?? "sent", options.sentAt ?? null, createdAt, createdAt)
     .run();
-  return id;
+  return { id, seriesId, chapterId };
 }
 
 function appFor(user: SessionUser) {
@@ -158,6 +158,33 @@ describe("GET /api/activity", () => {
     expect(second.items).toHaveLength(1);
     const firstIds = new Set(first.items.map((item) => item.id));
     expect(second.items.some((item) => firstIds.has(item.id))).toBe(false);
+  });
+
+  it("filters by status and series, scoped to the caller", async () => {
+    const owner = await seedAccount();
+    const stranger = await seedAccount();
+    const sent = await addDelivery(owner, { status: "sent" });
+    await addDelivery(owner, { status: "failed" });
+    await addDelivery(stranger, { status: "sent" });
+
+    const byStatus = (await (
+      await appFor(owner.user)("/api/activity?status=sent")
+    ).json()) as ActivityBody;
+    expect(byStatus.items).toHaveLength(1);
+    expect(byStatus.items[0]?.id).toBe(sent.id);
+
+    const bySeries = (await (
+      await appFor(owner.user)(`/api/activity?seriesId=${sent.seriesId}`)
+    ).json()) as ActivityBody;
+    expect(bySeries.items).toHaveLength(1);
+    expect(bySeries.items[0]?.id).toBe(sent.id);
+  });
+
+  it("rejects an unknown status filter", async () => {
+    const account = await seedAccount();
+    const res = await appFor(account.user)("/api/activity?status=exploded");
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
   });
 
   it("caps a page at 50 items", async () => {

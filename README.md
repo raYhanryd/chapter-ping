@@ -8,7 +8,7 @@ Free while launch capacity lasts. No card, no ads, no paid tier.
 
 ## Status
 
-Milestone 4 (scheduler) is complete and reviewed. Sign-in, series, destinations, the scheduler, activity and account deletion are implemented and tested; the UI lands in Milestone 5. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
+Milestone 5 (editorial UI) is built and awaiting the operator's desktop/mobile review. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
 
 Build docs live in the repo:
 

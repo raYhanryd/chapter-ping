@@ -84,10 +84,12 @@ describe("session gating", () => {
       user: { id: string; name: string };
       capacity: { accountsMax: number };
       waitlisted: boolean;
+      createdAt: string;
     };
     expect(body.user).toEqual({ id: "user-a", name: "Reader A", image: null });
     expect(body.capacity.accountsMax).toBe(100);
     expect(body.waitlisted).toBe(true);
+    expect(Number.isNaN(new Date(body.createdAt).getTime())).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { ACTIVITY_RETENTION_DAYS } from "../../shared/constants";
+import { ACTIVITY_RETENTION_DAYS, DELIVERY_STATUSES, type DeliveryStatus } from "../../shared/constants";
 import type { AppEnv } from "../lib/session";
 import { requireUser } from "../lib/session";
 import { ApiError } from "../lib/errors";
@@ -35,6 +35,14 @@ function readLimit(raw: string | undefined): number {
   return Math.min(Math.max(Number(raw), 1), MAX_LIMIT);
 }
 
+function readStatus(raw: string | undefined): DeliveryStatus | null {
+  if (!raw) return null;
+  if (!(DELIVERY_STATUSES as readonly string[]).includes(raw)) {
+    throw new ApiError("VALIDATION_ERROR", "That status filter is not valid.", 400, "status");
+  }
+  return raw as DeliveryStatus;
+}
+
 function readCursor(raw: string | undefined): { time: string; id: string } | null {
   if (!raw) return null;
   const separator = raw.indexOf("|");
@@ -52,10 +60,20 @@ activityRoutes.get("/activity", async (c) => {
 
   const limit = readLimit(c.req.query("limit"));
   const cursor = readCursor(c.req.query("cursor"));
+  const status = readStatus(c.req.query("status"));
+  const seriesId = c.req.query("seriesId")?.trim() || null;
   const cutoff = new Date(Date.now() - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60_000).toISOString();
 
   const conditions = ["dst.user_id = ?", "d.created_at >= ?"];
   const values: unknown[] = [user.id, cutoff];
+  if (seriesId) {
+    conditions.push("se.id = ?");
+    values.push(seriesId);
+  }
+  if (status) {
+    conditions.push("d.status = ?");
+    values.push(status);
+  }
   if (cursor) {
     conditions.push(
       "(COALESCE(d.sent_at, d.created_at) < ? OR (COALESCE(d.sent_at, d.created_at) = ? AND d.id < ?))",

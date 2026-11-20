@@ -1,0 +1,142 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { api, ApiClientError } from "../lib/api";
+import { useMe } from "../lib/queries";
+import { ErrorBlock, useToast } from "./ui";
+
+const sections = [
+  { to: "/dashboard", label: "Series" },
+  { to: "/destinations", label: "Destinations" },
+  { to: "/activity", label: "Activity" },
+  { to: "/settings", label: "Settings" },
+];
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+export function AppShell() {
+  const me = useMe();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menuOpen]);
+
+  const signOut = useMutation({
+    mutationFn: api.signOut,
+    onSuccess: () => {
+      queryClient.clear();
+      navigate("/");
+    },
+    onError: () => toast("Could not sign out. Try again."),
+  });
+
+  if (me.isPending) {
+    return (
+      <div className="app-loading" aria-busy="true" aria-label="Loading your account">
+        <div className="skeleton-page" />
+      </div>
+    );
+  }
+
+  if (me.isError) {
+    if (me.error instanceof ApiClientError && me.error.status === 401) {
+      const next = `${location.pathname}${location.search}`;
+      return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+    }
+    return (
+      <div className="app-fallback">
+        <ErrorBlock message="Could not load your account." onRetry={() => void me.refetch()} />
+      </div>
+    );
+  }
+
+  const name = me.data.user.name || "Discord member";
+
+  return (
+    <div className="app-shell">
+      <aside className="rail">
+        <NavLink className="wordmark" to="/dashboard">
+          Chapter Tracker
+        </NavLink>
+
+        <nav className="rail-nav" aria-label="Primary">
+          {sections.map((section) => (
+            <NavLink
+              key={section.to}
+              to={section.to}
+              className={({ isActive }) => (isActive ? "rail-link is-active" : "rail-link")}
+            >
+              {section.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="rail-foot" ref={menuRef}>
+          <button
+            type="button"
+            className="account-button"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {me.data.user.image ? (
+              <img className="avatar" src={me.data.user.image} alt="" width={28} height={28} />
+            ) : (
+              <span className="avatar avatar-fallback" aria-hidden="true">
+                {initials(name)}
+              </span>
+            )}
+            <span className="account-name">{name}</span>
+          </button>
+          {menuOpen ? (
+            <div className="account-menu">
+              <p className="account-meta">Signed in with Discord</p>
+              <button
+                type="button"
+                className="account-action"
+                onClick={() => signOut.mutate()}
+                disabled={signOut.isPending}
+              >
+                {signOut.isPending ? "Signing out…" : "Sign out"}
+              </button>
+            </div>
+          ) : null}
+          <p className="rail-note">Free while in launch capacity.</p>
+        </div>
+      </aside>
+
+      <main className="page">
+        <Outlet />
+      </main>
+
+      <nav className="mobile-nav" aria-label="Mobile">
+        {sections.map((section) => (
+          <NavLink
+            key={section.to}
+            to={section.to}
+            className={({ isActive }) => (isActive ? "mobile-link is-active" : "mobile-link")}
+          >
+            {section.label}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  );
+}
