@@ -13,7 +13,8 @@ export interface SessionUser {
   discordId: string | null;
 }
 
-export type AppContext = Context<{ Bindings: Env; Variables: { user: SessionUser | null } }>;
+export type AppEnv = { Bindings: Env; Variables: { user: SessionUser | null } };
+export type AppContext = Context<AppEnv>;
 export type SessionResolver = (c: AppContext) => Promise<SessionUser | null>;
 
 /** Resolve the Better Auth session, then the Discord account id for this user. */

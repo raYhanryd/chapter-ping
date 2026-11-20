@@ -12,9 +12,7 @@ meRoutes.get("/me", async (c) => {
 
   const config = readConfig(c.env);
   const [accounts, activeSeries] = await Promise.all([
-    c.env.DB.prepare("SELECT COUNT(DISTINCT user_id) AS count FROM subscriptions WHERE active = 1").first<{
-      count: number;
-    }>(),
+    c.env.DB.prepare("SELECT COUNT(*) AS count FROM user").first<{ count: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) AS count FROM series WHERE active = 1").first<{ count: number }>(),
   ]);
 

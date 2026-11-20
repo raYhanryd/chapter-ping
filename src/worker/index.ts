@@ -3,13 +3,13 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { AuthConfigError, createAuth } from "./auth";
 import { accountRoutes } from "./api/account";
 import { meRoutes } from "./api/me";
-import type { Env } from "./env";
+import { seriesRoutes } from "./api/series";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
-import { resolveSessionUser, type SessionUser } from "./lib/session";
+import { resolveSessionUser, type AppEnv, type SessionUser } from "./lib/session";
 
-export type AppEnv = { Bindings: Env; Variables: { user: SessionUser | null } };
+export type { AppEnv };
 
 export interface AppOptions {
   /** Test seam: replace the session resolver. Production uses the Better Auth session. */
@@ -43,9 +43,7 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/status", async (c) => {
     const config = readConfig(c.env);
     try {
-      const accounts = await c.env.DB.prepare(
-        "SELECT COUNT(DISTINCT user_id) AS count FROM subscriptions WHERE active = 1",
-      ).first<{ count: number }>();
+      const accounts = await c.env.DB.prepare("SELECT COUNT(*) AS count FROM user").first<{ count: number }>();
       const activeSeries = await c.env.DB.prepare(
         "SELECT COUNT(*) AS count FROM series WHERE active = 1",
       ).first<{ count: number }>();
@@ -90,6 +88,7 @@ export function createApp(options: AppOptions = {}) {
 
   app.route("/api", meRoutes);
   app.route("/api", accountRoutes);
+  app.route("/api", seriesRoutes);
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
