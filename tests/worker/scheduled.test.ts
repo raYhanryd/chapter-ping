@@ -136,6 +136,15 @@ async function seedActivityRows(): Promise<void> {
       .bind(crypto.randomUUID(), started, status)
       .run();
   }
+  for (const [key, windowStart] of [
+    ["old-limit", older],
+    ["live-limit", now],
+  ] as const) {
+    await testDb.db
+      .prepare("INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)")
+      .bind(key, windowStart)
+      .run();
+  }
   for (const [discordId, created] of [
     ["old-wait", older],
     ["recent-wait", now],
@@ -174,7 +183,7 @@ describe("runScheduled", () => {
       .prepare("SELECT status, feeds_checked, chapters_found, deliveries_sent FROM job_runs")
       .first<{ status: string; feeds_checked: number; chapters_found: number; deliveries_sent: number }>();
     expect(run).toMatchObject({ status: "ok", feeds_checked: 1, chapters_found: 1, deliveries_sent: 1 });
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).not.toBeNull();
   });
 
   it("releases the lock after a thrown error", async () => {
@@ -186,7 +195,7 @@ describe("runScheduled", () => {
 
     await expect(runScheduled(env(), fetch, NOW)).rejects.toThrow();
     await testDb.db.exec("DROP TRIGGER fail_finish");
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).not.toBeNull();
   });
 });
 
@@ -201,5 +210,7 @@ describe("cleanup", () => {
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries")).toBe(2);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM deliveries WHERE status = 'retry'")).toBe(1);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM rate_limits")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM rate_limits WHERE key = 'live-limit'")).toBe(1);
   });
 });

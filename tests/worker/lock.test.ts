@@ -23,8 +23,8 @@ beforeEach(async () => {
 
 describe("job lock", () => {
   it("claims a free lock once", async () => {
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(false);
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).not.toBeNull();
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBeNull();
   });
 
   it("never grants two concurrent claims", async () => {
@@ -37,15 +37,27 @@ describe("job lock", () => {
   });
 
   it("allows reacquire after the lease expires", async () => {
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
-    expect(await acquireLock(testDb.db, "cron", 4, later(5))).toBe(true);
-    expect(await acquireLock(testDb.db, "cron", 4, later(5))).toBe(false);
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).not.toBeNull();
+    expect(await acquireLock(testDb.db, "cron", 4, later(5))).not.toBeNull();
+    expect(await acquireLock(testDb.db, "cron", 4, later(5))).toBeNull();
   });
 
   it("allows reacquire after an explicit release", async () => {
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
-    await releaseLock(testDb.db, "cron");
-    expect(await acquireLock(testDb.db, "cron", 4, NOW)).toBe(true);
+    const lease = await acquireLock(testDb.db, "cron", 4, NOW);
+    expect(lease).not.toBeNull();
+    await releaseLock(testDb.db, "cron", lease!);
+    expect(await acquireLock(testDb.db, "cron", 4, NOW)).not.toBeNull();
+  });
+
+  it("does not release a lock that another run now owns", async () => {
+    const staleLease = await acquireLock(testDb.db, "cron", 4, NOW);
+    const currentLease = await acquireLock(testDb.db, "cron", 4, later(5));
+    expect(staleLease).not.toBeNull();
+    expect(currentLease).not.toBeNull();
+
+    await releaseLock(testDb.db, "cron", staleLease!);
+
+    expect(await acquireLock(testDb.db, "cron", 4, later(5))).toBeNull();
   });
 });
 

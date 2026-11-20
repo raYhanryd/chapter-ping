@@ -29,6 +29,7 @@ interface DueDelivery {
   chapter_label: string;
   chapter_url: string;
   series_title: string;
+  subscription_active: number | null;
 }
 
 export function classifyFailure(status: number): "permanent" | "transient" {
@@ -48,6 +49,9 @@ function errorMessage(error: unknown): string {
 }
 
 export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): Promise<DeliverResult> {
+  const key = env.WEBHOOK_ENCRYPTION_KEY?.trim();
+  if (!key) throw new ApiError("SERVICE_UNAVAILABLE", "Webhook storage is not configured yet.", 503);
+
   const config = readConfig(env);
   const nowIso = now.toISOString();
 
@@ -55,11 +59,13 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
     `SELECT d.id AS delivery_id, d.attempts,
             dst.id AS destination_id, dst.status AS destination_status,
             dst.webhook_ciphertext, dst.webhook_iv, dst.role_id,
-            ch.chapter_label, ch.url AS chapter_url, se.title AS series_title
+            ch.chapter_label, ch.url AS chapter_url, se.title AS series_title,
+            sb.active AS subscription_active
      FROM deliveries d
      JOIN chapters ch ON ch.id = d.chapter_id
      JOIN series se ON se.id = ch.series_id
      JOIN destinations dst ON dst.id = d.destination_id
+     LEFT JOIN subscriptions sb ON sb.series_id = ch.series_id AND sb.destination_id = d.destination_id
      WHERE d.status IN ('pending', 'retry') AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?)
      ORDER BY d.created_at
      LIMIT ?`,
@@ -70,7 +76,7 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
   const counts: DeliverResult = { sent: 0, retried: 0, failed: 0, skipped: 0 };
 
   for (const delivery of due.results ?? []) {
-    if (delivery.destination_status !== "active") {
+    if (delivery.destination_status !== "active" || delivery.subscription_active !== 1) {
       await env.DB.prepare("UPDATE deliveries SET status = 'skipped', updated_at = ? WHERE id = ?")
         .bind(nowIso, delivery.delivery_id)
         .run();
@@ -82,7 +88,7 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
     try {
       url = await decryptSecret(
         { ciphertext: delivery.webhook_ciphertext, iv: delivery.webhook_iv },
-        env.WEBHOOK_ENCRYPTION_KEY ?? "",
+        key,
       );
     } catch (error) {
       await env.DB.batch([

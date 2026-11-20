@@ -9,7 +9,6 @@ const plaintext = "https://discord.com/api/webhooks/123456789012345678/abcDEF_12
 describe("webhook crypto", () => {
   it("round trips a secret", async () => {
     const encrypted = await encryptSecret(plaintext, key);
-    expect(encrypted.version).toBe("v1");
     expect(await decryptSecret(encrypted, key)).toBe(plaintext);
   });
 

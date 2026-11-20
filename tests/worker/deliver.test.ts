@@ -48,6 +48,7 @@ async function seedDelivery(options: {
   nextAttemptAt?: string | null;
   destinationStatus?: string;
   ciphertext?: string;
+  subscriptionActive?: boolean;
 } = {}): Promise<{ deliveryId: string; destinationId: string; chapterId: string }> {
   seq += 1;
   const suffix = String(seq).padStart(2, "0");
@@ -82,6 +83,13 @@ async function seedDelivery(options: {
       "INSERT INTO series (id, external_id, title, feed_url, site_url, latest_chapter_number, latest_chapter_label, latest_chapter_title, latest_chapter_url, next_check_at, active, created_at, updated_at) VALUES (?, ?, 'One Piece', 'https://weebcentral.com/series/x/rss', 'https://weebcentral.com/series/x', 13, 'Chapter 13', 'One Piece Chapter 13', 'https://weebcentral.com/chapters/13', ?, 1, ?, ?)",
     )
     .bind(seriesId, crypto.randomUUID(), now, now, now)
+    .run();
+
+  await testDb.db
+    .prepare(
+      "INSERT INTO subscriptions (id, user_id, series_id, destination_id, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(crypto.randomUUID(), userId, seriesId, destinationId, options.subscriptionActive === false ? 0 : 1, now, now)
     .run();
 
   const chapterId = crypto.randomUUID();
@@ -243,5 +251,33 @@ describe("deliverDue", () => {
     expect(
       await count(testDb.db, "SELECT COUNT(*) AS count FROM destinations WHERE id = ? AND status = 'disabled'", destinationId),
     ).toBe(1);
+  });
+
+  it("fails the run without touching deliveries when the encryption key is missing", async () => {
+    const { deliveryId, destinationId } = await seedDelivery();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(deliverDue(env({ WEBHOOK_ENCRYPTION_KEY: "  " }), NOW, fetchSpy)).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+    });
+
+    expect((await deliveryRow(deliveryId))?.status).toBe("pending");
+    expect(
+      await count(testDb.db, "SELECT COUNT(*) AS count FROM destinations WHERE id = ? AND status = 'active'", destinationId),
+    ).toBe(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("skips a queued delivery after its subscription is paused", async () => {
+    const { deliveryId } = await seedDelivery({ subscriptionActive: false });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await deliverDue(env(), NOW, fetchSpy);
+
+    expect(result).toEqual({ sent: 0, retried: 0, failed: 0, skipped: 1 });
+    expect((await deliveryRow(deliveryId))?.status).toBe("skipped");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

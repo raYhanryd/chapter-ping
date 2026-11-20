@@ -202,30 +202,21 @@ seriesRoutes.post("/series", async (c) => {
     .bind(parsed.externalId)
     .first<{ id: string }>();
 
-  if (existing) {
-    if (await findSubscription(c.env.DB, user.id, existing.id)) {
-      throw new ApiError("SERIES_ALREADY_TRACKED", "You already track this series.", 409);
-    }
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        "UPDATE series SET active = 1, next_check_at = ?, updated_at = ? WHERE id = ?",
-      ).bind(nextCheckAt(config.pollIntervalMinutes, now), nowIso, existing.id),
-      c.env.DB.prepare(
-        "INSERT INTO subscriptions (id, user_id, series_id, destination_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-      ).bind(crypto.randomUUID(), user.id, existing.id, destinationId, nowIso, nowIso),
-    ]);
-
-    return c.json({ series: { id: existing.id, title: feed.title, latest: feed.latest } }, 201);
+  if (existing && (await findSubscription(c.env.DB, user.id, existing.id))) {
+    throw new ApiError("SERIES_ALREADY_TRACKED", "You already track this series.", 409);
   }
 
-  const seriesId = crypto.randomUUID();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT INTO series (id, source, external_id, title, feed_url, site_url,
-        latest_chapter_number, latest_chapter_label, latest_chapter_title, latest_chapter_url, latest_published_at,
-        next_check_at, active, created_at, updated_at)
-       VALUES (?, 'weebcentral', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    ).bind(
+  // The conflict clauses make a concurrent add converge on one series and one
+  // subscription instead of failing on the unique indexes.
+  const seriesId = existing?.id ?? crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO series (id, source, external_id, title, feed_url, site_url,
+      latest_chapter_number, latest_chapter_label, latest_chapter_title, latest_chapter_url, latest_published_at,
+      next_check_at, active, created_at, updated_at)
+     VALUES (?, 'weebcentral', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+     ON CONFLICT(source, external_id) DO NOTHING`,
+  )
+    .bind(
       seriesId,
       parsed.externalId,
       feed.title,
@@ -239,16 +230,41 @@ seriesRoutes.post("/series", async (c) => {
       nextCheckAt(config.pollIntervalMinutes, now),
       nowIso,
       nowIso,
-    ),
-    c.env.DB.prepare(
-      "INSERT INTO subscriptions (id, user_id, series_id, destination_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-    ).bind(crypto.randomUUID(), user.id, seriesId, destinationId, nowIso, nowIso),
-  ]);
+    )
+    .run();
+
+  let id = seriesId;
+  if (!existing) {
+    const row = await c.env.DB.prepare(
+      "SELECT id FROM series WHERE source = 'weebcentral' AND external_id = ?",
+    )
+      .bind(parsed.externalId)
+      .first<{ id: string }>();
+    if (!row) throw new ApiError("INTERNAL_ERROR", "Something went wrong. Try again.", 500);
+    id = row.id;
+  }
+
+  await c.env.DB.prepare("UPDATE series SET active = 1, next_check_at = ?, updated_at = ? WHERE id = ?")
+    .bind(nextCheckAt(config.pollIntervalMinutes, now), nowIso, id)
+    .run();
+
+  const subscription = await c.env.DB.prepare(
+    "INSERT INTO subscriptions (id, user_id, series_id, destination_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, series_id) DO NOTHING",
+  )
+    .bind(crypto.randomUUID(), user.id, id, destinationId, nowIso, nowIso)
+    .run();
+  if (subscription.meta.changes === 0) {
+    throw new ApiError("SERIES_ALREADY_TRACKED", "You already track this series.", 409);
+  }
+
+  if (existing) {
+    return c.json({ series: { id, title: feed.title, latest: feed.latest } }, 201);
+  }
 
   return c.json(
     {
       series: {
-        id: seriesId,
+        id,
         title: feed.title,
         siteUrl: parsed.siteUrl,
         latest: feed.latest,

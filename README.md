@@ -8,7 +8,7 @@ Free while launch capacity lasts. No card, no ads, no paid tier.
 
 ## Status
 
-Milestone 0 (foundation). The interface, auth, series, destinations, and scheduler land in later milestones.
+Milestone 4 (scheduler) is complete and reviewed. Sign-in, series, destinations, the scheduler, activity and account deletion are implemented and tested; the UI lands in Milestone 5. Live Discord checkpoints (sign-in and a real webhook test) still need the operator's session.
 
 Build docs live in the repo:
 
@@ -35,7 +35,7 @@ Arithmetic: 150 series at 30 minutes is 300 feed checks/hour. The cron runs ever
 
 Cloudflare free limits that shape this: 100,000 Worker requests/day, 10 ms CPU per invocation, 50 subrequests, 50 D1 queries per invocation, 5M D1 rows read/day and 100,000 written/day. Static asset requests do not count as Worker requests. Exceeding a daily limit fails requests until the 00:00 UTC reset.
 
-Capacity is finite and there is no SLA. When the account cap is reached, new sign-ins land on a waitlist and existing users keep working.
+Capacity is finite and there is no SLA. When the account cap is reached, a first series add is refused and the account joins the waitlist; existing users keep working.
 
 ## Architecture
 
@@ -79,8 +79,10 @@ npm run db:migrate:remote
 
 ```bash
 npx wrangler dev --test-scheduled
-curl "http://localhost:8787/__scheduled?cron=*/5+*+*+*+*"
+curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=*/5+*+*+*+*"
 ```
+
+Use Wrangler's `/cdn-cgi/local/scheduled` route. `/__scheduled` is swallowed by the SPA asset fallback.
 
 ## Tests
 

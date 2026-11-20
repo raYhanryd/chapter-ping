@@ -144,6 +144,33 @@ describe("series add", () => {
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions")).toBe(2);
   });
 
+  it("creates one series row when two users add it at the same time", async () => {
+    const first = await seedUser();
+    const second = await seedUser();
+    const url = "https://weebcentral.com/series/RACEAA01AAAA/Test";
+
+    const results = await Promise.all([
+      addSeries(appFor(first.user), url, first.destinationId),
+      addSeries(appFor(second.user), url, second.destinationId),
+    ]);
+
+    expect(results.map((res) => res.status)).toEqual([201, 201]);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions")).toBe(2);
+  });
+
+  it("rejects a concurrent duplicate add without a 500", async () => {
+    const { user, destinationId } = await seedUser();
+    const app = appFor(user);
+    const url = "https://weebcentral.com/series/RACEBB01AAAA/Test";
+
+    const results = await Promise.all([addSeries(app, url, destinationId), addSeries(app, url, destinationId)]);
+
+    expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series")).toBe(1);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions")).toBe(1);
+  });
+
   it("rejects a destination owned by another user", async () => {
     const first = await seedUser();
     const second = await seedUser();

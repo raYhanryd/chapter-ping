@@ -1,13 +1,11 @@
 import { ApiError } from "./errors";
 
-const VERSION = "v1";
 const IV_BYTES = 12;
 const KEY_BYTES = 32;
 
 export interface EncryptedSecret {
   ciphertext: string;
   iv: string;
-  version: string;
 }
 
 function invalid(): ApiError {
@@ -48,7 +46,6 @@ export async function encryptSecret(plaintext: string, keyBase64: string): Promi
   return {
     ciphertext: encodeBase64(new Uint8Array(encrypted)),
     iv: encodeBase64(iv),
-    version: VERSION,
   };
 }
 

@@ -38,7 +38,8 @@ export async function runScheduled(
   fetchImpl: typeof fetch,
   now: Date = new Date(),
 ): Promise<JobRunSummary> {
-  if (!(await acquireLock(env.DB, LOCK_NAME, LEASE_MINUTES, now))) return { ...EMPTY };
+  const lease = await acquireLock(env.DB, LOCK_NAME, LEASE_MINUTES, now);
+  if (!lease) return { ...EMPTY };
 
   let runId: string | null = null;
   let checked = 0;
@@ -106,6 +107,6 @@ export async function runScheduled(
     }
     throw error;
   } finally {
-    await releaseLock(env.DB, LOCK_NAME);
+    await releaseLock(env.DB, LOCK_NAME, lease);
   }
 }

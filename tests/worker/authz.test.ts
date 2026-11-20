@@ -80,9 +80,14 @@ describe("session gating", () => {
     const res = await appFor(userA).request("http://localhost:8787/api/me", {}, testDb.env);
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toContain("no-store");
-    const body = (await res.json()) as { user: { id: string; name: string }; capacity: { accountsMax: number } };
+    const body = (await res.json()) as {
+      user: { id: string; name: string };
+      capacity: { accountsMax: number };
+      waitlisted: boolean;
+    };
     expect(body.user).toEqual({ id: "user-a", name: "Reader A", image: null });
     expect(body.capacity.accountsMax).toBe(100);
+    expect(body.waitlisted).toBe(true);
   });
 });
 
@@ -106,6 +111,7 @@ describe("account deletion", () => {
     const res = await deleteRequest(appFor(userA));
     expect(res.status).toBe(204);
     expect(res.headers.get("set-cookie")).toContain("better-auth.session_token=");
+    expect(res.headers.get("set-cookie")).toMatch(/__Secure-better-auth\.session_token=;[^,]*Secure/);
 
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM user WHERE id = 'user-a'")).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM user WHERE id = 'user-b'")).toBe(1);
@@ -118,6 +124,24 @@ describe("account deletion", () => {
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM session WHERE user_id = 'user-a'")).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM waitlist WHERE discord_id = ?", userA.discordId)).toBe(0);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series WHERE id = 'series-1'")).toBe(1);
+  });
+
+  it("removes a waitlist entry keyed by user id when Discord is not linked", async () => {
+    const now = Date.now();
+    await testDb.db
+      .prepare("INSERT INTO user (id, name, email, email_verified, created_at, updated_at) VALUES ('user-c', 'Reader C', 'c@discord.invalid', 0, ?, ?)")
+      .bind(now, now)
+      .run();
+    await testDb.db
+      .prepare("INSERT INTO waitlist (id, discord_id, username, created_at) VALUES ('wait-c', 'user-c', 'reader-c', ?)")
+      .bind(new Date(now).toISOString())
+      .run();
+
+    const res = await deleteRequest(appFor({ id: "user-c", name: "Reader C", image: null, discordId: null }));
+
+    expect(res.status).toBe(204);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM waitlist WHERE discord_id = 'user-c'")).toBe(0);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM user WHERE id = 'user-c'")).toBe(0);
   });
 
   it("does not let a signed-out request delete anything", async () => {

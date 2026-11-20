@@ -138,6 +138,20 @@ describe("destination create", () => {
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("DESTINATION_EXISTS");
   });
 
+  it("never stores the same webhook twice under concurrent requests", async () => {
+    const user = await seedUser();
+    const call = request(user);
+    const body = JSON.stringify({ label: "My channel", webhookUrl: webhookUrl() });
+
+    const results = await Promise.all([
+      call("/api/destinations", { method: "POST", body }),
+      call("/api/destinations", { method: "POST", body }),
+    ]);
+
+    expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM destinations")).toBe(1);
+  });
+
   it("enforces the per-user destination cap", async () => {
     const user = await seedUser();
     const call = request(user, { MAX_DESTINATIONS_PER_USER: "1" });

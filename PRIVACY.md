@@ -7,10 +7,10 @@ This is a draft for the operator to review before a public launch. Replace the c
 - Discord identity: user id, display name, avatar URL (through Discord OAuth).
 - Session data needed to keep you signed in.
 - Series subscriptions: which weebcentral series you track and which destination each one uses.
-- Destinations: a label, an encrypted Discord webhook URL, and the guild and channel names Discord reports for it.
+- Destinations: a label, an encrypted Discord webhook URL, and the Discord guild and channel ids Discord reports for it. Names are not stored.
 - An optional Discord role id you choose to ping.
 - Delivery metadata: which chapter went to which destination, status, attempt count, and a sanitized error message.
-- A waitlist entry (Discord id and username) if launch capacity is full when you sign in.
+- A waitlist entry (Discord id and username) if a first series add is refused because launch capacity is full.
 
 No analytics, no advertising identifiers, no marketing email, no payment data.
 

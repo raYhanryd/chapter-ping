@@ -12,7 +12,7 @@ The service runs on free infrastructure with finite capacity. Checks may be dela
 
 ## Free, with finite capacity
 
-There is no paid plan, no card, and no advertising. Sign-ups are capped. When the cap is reached, new users join a waitlist. Existing users are not evicted to make room.
+There is no paid plan, no card, and no advertising. Active accounts are capped. When the cap is reached, a first series add is refused and the account joins a waitlist. Existing users are not evicted to make room.
 
 ## Acceptable use
 

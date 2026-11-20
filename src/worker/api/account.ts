@@ -31,15 +31,15 @@ accountRoutes.post("/account/delete", async (c) => {
     c.env.DB.prepare("DELETE FROM session WHERE user_id = ?").bind(user.id),
     c.env.DB.prepare("DELETE FROM account WHERE user_id = ?").bind(user.id),
   ];
-  if (user.discordId) {
-    statements.push(c.env.DB.prepare("DELETE FROM waitlist WHERE discord_id = ?").bind(user.discordId));
-  }
+  // The waitlist is keyed by Discord id, falling back to the user id at insert time.
+  statements.push(c.env.DB.prepare("DELETE FROM waitlist WHERE discord_id = ?").bind(user.discordId ?? user.id));
   statements.push(c.env.DB.prepare("DELETE FROM user WHERE id = ?").bind(user.id));
 
   await c.env.DB.batch(statements);
 
   for (const name of ["better-auth.session_token", "__Secure-better-auth.session_token"]) {
-    c.header("Set-Cookie", `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`, { append: true });
+    const secure = name.startsWith("__Secure-") ? "; Secure" : "";
+    c.header("Set-Cookie", `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`, { append: true });
   }
 
   return c.body(null, 204);

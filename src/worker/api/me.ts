@@ -11,11 +11,14 @@ meRoutes.get("/me", async (c) => {
   noStore(c);
 
   const config = readConfig(c.env);
-  const [accounts, activeSeries] = await Promise.all([
+  const [accounts, activeSeries, waitlisted] = await Promise.all([
     c.env.DB.prepare(
       "SELECT COUNT(DISTINCT user_id) AS count FROM subscriptions WHERE active = 1",
     ).first<{ count: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) AS count FROM series WHERE active = 1").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT 1 AS present FROM waitlist WHERE discord_id = ?")
+      .bind(user.discordId ?? user.id)
+      .first<{ present: number }>(),
   ]);
 
   return c.json({
@@ -28,6 +31,6 @@ meRoutes.get("/me", async (c) => {
       seriesPerUser: config.maxSeriesPerUser,
       destinationsPerUser: config.maxDestinationsPerUser,
     },
-    waitlisted: false,
+    waitlisted: Boolean(waitlisted),
   });
 });

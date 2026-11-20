@@ -125,10 +125,11 @@ destinationRoutes.post("/destinations", async (c) => {
   const now = new Date().toISOString();
   const label = (labelField.value || metadata.name || "Discord channel").slice(0, 80);
 
-  await c.env.DB.prepare(
+  const inserted = await c.env.DB.prepare(
     `INSERT INTO destinations (id, user_id, label, webhook_ciphertext, webhook_iv, webhook_fingerprint,
        guild_id, channel_id, role_id, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+     ON CONFLICT(user_id, webhook_fingerprint) DO NOTHING`,
   )
     .bind(
       id,
@@ -144,6 +145,9 @@ destinationRoutes.post("/destinations", async (c) => {
       now,
     )
     .run();
+  if (inserted.meta.changes === 0) {
+    throw new ApiError("DESTINATION_EXISTS", "You already saved this webhook.", 409, "webhookUrl");
+  }
 
   const row = await loadOwned(c.env.DB, user.id, id);
   return c.json({ destination: summary(row) }, 201);

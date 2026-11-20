@@ -11,5 +11,6 @@ export async function cleanup(db: D1Database, now: Date): Promise<void> {
       cutoff(now, ACTIVITY_RETENTION_DAYS),
     ),
     db.prepare("DELETE FROM waitlist WHERE created_at < ?").bind(cutoff(now, WAITLIST_RETENTION_DAYS)),
+    db.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(cutoff(now, 1)),
   ]);
 }
