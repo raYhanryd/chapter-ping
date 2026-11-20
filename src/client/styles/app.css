@@ -8,10 +8,11 @@
   --color-muted: #75695b;
   --color-line: #d8ccba;
   --color-line-strong: #b9a992;
-  --color-accent: #d8552f;
+  --color-accent: #b8431f;
   --color-accent-ink: #fff7f1;
-  --color-moss: #5c705b;
-  --color-amber: #b7791f;
+  --color-accent-hover: #a03a1a;
+  --color-moss: #4c5f4b;
+  --color-amber: #8a5a11;
   --color-danger: #9e3a32;
   --color-focus: #2f5d8a;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
@@ -27,26 +28,53 @@
   --muted: #75695b;
   --line: #d8ccba;
   --line-strong: #b9a992;
-  --accent: #d8552f;
+  --accent: #b8431f;
   --accent-ink: #fff7f1;
-  --moss: #5c705b;
-  --amber: #b7791f;
+  --accent-hover: #a03a1a;
+  --moss: #4c5f4b;
+  --amber: #8a5a11;
   --danger: #9e3a32;
   --focus: #2f5d8a;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --radius-control: 2px;
+  --radius-panel: 6px;
+  --radius-pill: 999px;
+
+  --motion-fast: 120ms;
+  --motion-slow: 180ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --measure: 68ch;
+  --container: 1120px;
 }
 
 @layer base {
   html {
     background-color: var(--paper);
     color: var(--ink);
+    overflow-x: clip;
   }
 
   body {
     margin: 0;
+    overflow-x: clip;
     font-family: var(--font-sans);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+  }
+
+  p {
+    max-width: var(--measure);
   }
 
   h1,
@@ -74,12 +102,23 @@
 }
 
 @layer components {
-  .meta {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+  .label {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 500;
     color: var(--muted);
+  }
+
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .container {
+    width: 100%;
+    max-width: var(--container);
+    margin-inline: auto;
+    padding-inline: var(--space-4);
   }
 
   .display {
