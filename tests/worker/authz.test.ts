@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../src/worker";
+import type { Env } from "../../src/worker/env";
 import type { SessionUser } from "../../src/worker/lib/session";
 import { count, createTestDb, type TestDb } from "./helpers";
 
@@ -47,7 +48,12 @@ function appFor(user: SessionUser | null) {
   return createApp({ resolveUser: async () => user });
 }
 
-function deleteRequest(app: ReturnType<typeof createApp>, origin = "http://localhost:8787", confirm = "DELETE") {
+function deleteRequest(
+  app: ReturnType<typeof createApp>,
+  origin = "http://localhost:8787",
+  confirm = "DELETE",
+  env: Env = testDb.env,
+) {
   return app.request(
     "http://localhost:8787/api/account/delete",
     {
@@ -55,7 +61,7 @@ function deleteRequest(app: ReturnType<typeof createApp>, origin = "http://local
       headers: { "content-type": "application/json", origin },
       body: JSON.stringify({ confirm }),
     },
-    testDb.env,
+    env,
   );
 }
 
@@ -101,6 +107,18 @@ describe("account deletion", () => {
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe("CROSS_ORIGIN");
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM destinations")).toBe(before);
+  });
+
+  it("accepts the public proxy origin once PUBLIC_URL is set", async () => {
+    const env: Env = { ...testDb.env, PUBLIC_URL: "https://chapterping.vercel.app" };
+    const res = await deleteRequest(appFor(userA), "https://chapterping.vercel.app", "delete", env);
+    // 400 means the origin check passed and only the confirmation word was wrong.
+    expect(res.status).toBe(400);
+  });
+
+  it("still rejects the proxy origin when PUBLIC_URL is not set", async () => {
+    const res = await deleteRequest(appFor(userA), "https://chapterping.vercel.app", "delete");
+    expect(res.status).toBe(403);
   });
 
   it("rejects the wrong confirmation word", async () => {

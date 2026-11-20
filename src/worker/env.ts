@@ -1,6 +1,8 @@
 export interface Env {
   DB: D1Database;
   APP_URL: string;
+  /** Canonical public origin when the app is served through a proxy. Defaults to APP_URL. */
+  PUBLIC_URL?: string;
   ENVIRONMENT?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;

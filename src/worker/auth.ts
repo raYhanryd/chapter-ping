@@ -24,8 +24,12 @@ function buildAuth(env: Env) {
   }
   if (!env.APP_URL) throw new AuthConfigError("APP_URL is not set");
 
+  // Discord's redirect_uri is derived from baseURL, so a proxied deployment must
+  // name the proxy as its public origin. Unset keeps the direct origin.
+  const publicUrl = env.PUBLIC_URL?.trim() || env.APP_URL;
+
   return betterAuth({
-    baseURL: env.APP_URL,
+    baseURL: publicUrl,
     secret,
     database: drizzleAdapter(getDb(env), { provider: "sqlite", schema }),
     socialProviders: {
@@ -45,7 +49,7 @@ function buildAuth(env: Env) {
         }),
       },
     },
-    trustedOrigins: [env.APP_URL],
+    trustedOrigins: [...new Set([publicUrl, env.APP_URL])],
   });
 }
 

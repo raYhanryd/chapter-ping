@@ -28,10 +28,11 @@ export function isSameOrigin({ origin, fetchSite, appUrl }: SameOriginInput): bo
 }
 
 export function assertSameOrigin(c: AppContext): void {
-  const allowed = isSameOrigin({
-    origin: c.req.header("origin"),
-    fetchSite: c.req.header("sec-fetch-site"),
-    appUrl: c.env.APP_URL,
-  });
+  const origin = c.req.header("origin");
+  const fetchSite = c.req.header("sec-fetch-site");
+  // Both the direct origin and the public proxy origin are ours.
+  const allowed = [c.env.PUBLIC_URL, c.env.APP_URL]
+    .filter((url): url is string => Boolean(url))
+    .some((appUrl) => isSameOrigin({ origin, fetchSite, appUrl }));
   if (!allowed) throw new ApiError("CROSS_ORIGIN", "Request origin is not allowed.", 403);
 }

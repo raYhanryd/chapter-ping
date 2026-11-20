@@ -1,6 +1,9 @@
 # Copy to .dev.vars and fill in local-only values. Never commit .dev.vars.
 # Local origin. The Vite dev server is pinned to port 8787.
 APP_URL=http://localhost:8787
+# Set only when the app is served from a proxy origin, e.g. https://chapterping.vercel.app.
+# Must be the origin the browser actually sees: Discord's callback is built from it.
+# PUBLIC_URL=
 ENVIRONMENT=development
 
 # Discord OAuth application (Developer Portal -> OAuth2).

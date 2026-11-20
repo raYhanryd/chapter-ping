@@ -25,6 +25,20 @@ describe("createAuth", () => {
     expect(auth.options.trustedOrigins).toEqual([base.APP_URL]);
   });
 
+  it("uses PUBLIC_URL as the public origin and trusts both origins", () => {
+    const auth = createAuth({
+      ...base,
+      DB: {} as D1Database,
+      PUBLIC_URL: "https://chapterping.vercel.app",
+    });
+    // Discord's redirect_uri is derived from baseURL, so the proxy must be baseURL.
+    expect(auth.options.baseURL).toBe("https://chapterping.vercel.app");
+    expect(auth.options.trustedOrigins).toEqual([
+      "https://chapterping.vercel.app",
+      base.APP_URL,
+    ]);
+  });
+
   it("uses identify only and synthesizes an email when Discord returns none", () => {
     const auth = createAuth({ ...base, DB: {} as D1Database, BETTER_AUTH_SECRET: "other-secret" });
     const discord = auth.options.socialProviders?.discord;
