@@ -1,0 +1,1960 @@
+================================================================================
+CHAPTER TRACKER WEB — COMPLETE AGENT BUILD PROMPT
+================================================================================
+
+You are the implementation agent for a new product called Chapter Tracker Web.
+
+READ THIS ENTIRE FILE BEFORE TOUCHING ANY FILE OR RUNNING ANY COMMAND.
+
+This is a standalone build brief. It is intentionally detailed. Treat it as the
+product spec, architecture decision record, security checklist, design brief,
+test plan, deployment guide, and definition of done.
+
+The short version:
+
+- Build a hosted, multi-series manga chapter tracker for Discord.
+- Users sign in with Discord.
+- Users add weebcentral series by pasting a weebcentral series link.
+- Users add Discord webhook destinations and an optional role ID to ping.
+- A scheduled worker checks the feeds and posts clean Discord embeds.
+- The site is free for users and must run on Cloudflare's free tier at launch.
+- It must be capacity-capped so it does not silently blow through free quotas.
+- It gets its own folder and its own new GitHub repository.
+- The existing Chapter Tracker GitHub Action is READ-ONLY reference. Do not
+  modify it, its workflow, its state, its secrets, its README, its settings, or
+  its Discord webhooks.
+
+The existing project remains the single-user, single-series, self-hosted
+GitHub Action edition. This new project is a separate multi-user web product.
+
+Do not merge the two projects. Do not reuse the existing production state or
+webhooks. Do not point the new website at the same Discord webhook as the
+existing action: two independent notifiers on one webhook means duplicate
+alerts. The README of the new project must include that warning.
+
+--------------------------------------------------------------------------------
+1. MISSION AND NON-NEGOTIABLES
+--------------------------------------------------------------------------------
+
+1.1 Product mission
+
+Make a clean, trustworthy place where a Discord community member can:
+
+- sign in without creating a password;
+- add several manga series from weebcentral;
+- route new-chapter alerts to their Discord channel(s);
+- optionally ping a role;
+- see whether delivery is healthy;
+- do all of that without touching GitHub, editing YAML, or running code.
+
+1.2 Hard boundaries
+
+DO NOT MODIFY THIS EXISTING PROJECT:
+
+  /Users/rayhan/Desktop/Projects/Chapter Tracker
+
+That folder is the current, working, public GitHub Action repository:
+
+  https://github.com/raYhanryd/onepiece-tracker
+
+You may READ it as a behavioral reference. You may not write to it. Do not
+change its Git history, branches, remotes, workflows, state file, README,
+docs, repository settings, or Discord configuration.
+
+Build the new application in this empty folder:
+
+  /Users/rayhan/Desktop/Projects/Chapter Tracker Web
+
+Create a new GitHub repository for it, separate from the existing repo.
+
+1.3 Free-tier non-negotiables
+
+- The product must be free for users. No paywall, no subscription, no ads.
+- The operator must pay $0 at launch.
+- Use only Cloudflare free-tier products for the hosted app:
+  Workers, static assets, D1, Cron Triggers. Do not require Workers Paid,
+  Cloudflare Images, Cloudflare Queues, Cloudflare Workflows, or any other
+  paid add-on.
+- Use a free `workers.dev` subdomain. Do not require a custom domain.
+- The app must enforce capacity limits so one user or a traffic spike cannot
+  consume the entire free allowance.
+- Do not promise "unlimited" anywhere in the UI or README. The honest promise
+  is "free, with a finite launch capacity."
+- If a requirement cannot be met on the free tier, STOP and report the exact
+  blocker. Do not silently move to a paid plan.
+- Free tiers can change and have no SLA. The app must degrade visibly and
+  gracefully, never silently lose a notification.
+
+1.4 Quality non-negotiables
+
+- TypeScript strict mode.
+- No secret in git, client JS, localStorage, logs, screenshots, or issue text.
+- Every database read/write that involves user data is scoped to the signed-in
+  user.
+- No arbitrary URL fetching. Weebcentral URLs and Discord webhook URLs only,
+  with strict allowlists.
+- No default shadcn dashboard look. The UI direction is in section 14.
+- Tests must be real and runnable offline. A build is not "done" because it
+  compiles.
+- The new repository must have a clear README, MIT license, CI, and a working
+  local setup.
+- Do not claim a deployment succeeded unless you actually verified it.
+
+--------------------------------------------------------------------------------
+2. REFERENCE PROJECT: WHAT TO LEARN, WHAT NOT TO COPY
+--------------------------------------------------------------------------------
+
+Read these files in the existing project before designing the new one:
+
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/README.md
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/scripts/check_chapter.py
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/tests/test_check_chapter.py
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/.github/workflows/check-chapter.yml
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/state/last_chapter.json
+  /Users/rayhan/Desktop/Projects/Chapter Tracker/docs/SHOWCASE.md
+
+The current project is a Python standard-library GitHub Action. It:
+
+- checks weebcentral's One Piece RSS feed 5 times a day;
+- compares the latest chapter with state/last_chapter.json;
+- sends a Discord embed to one or two webhooks;
+- optionally pings a role on webhook 2 using DISCORD_ROLE_ID_2;
+- tracks delivery per webhook so a failed destination cannot cause duplicates
+  in a destination that already succeeded;
+- retries transient failures on later runs, only for the failed destination;
+- quarantines permanent 401/403/404 webhooks;
+- fails loudly on feed/parse errors instead of treating them as "no chapter";
+- exits non-zero if an expected role ping is missing;
+- has 43 offline unit tests;
+- stores only env-var names and a truncated SHA-256 fingerprint in state, never
+  the webhook URL itself.
+
+Useful implementation details from the reference:
+
+  RSS_URL = "https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK/rss"
+  SERIES_URL = "https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK/One-Piece"
+  CHAPTER_NUM_RE = /Chapter\s+(\d+(?:\.\d+)?)/i
+  WEBHOOK_ENV_VARS = ("DISCORD_WEBHOOK_URL", "DISCORD_WEBHOOK_URL_2")
+  WEBHOOK_ROLE_ENV_VARS = {"DISCORD_WEBHOOK_URL_2": "DISCORD_ROLE_ID_2"}
+  PERMANENT_HTTP_STATUSES = {401, 403, 404}
+  RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
+  SEND_ATTEMPTS = 3
+  RETRY_BACKOFF_SECONDS = (2.0, 5.0)
+  WEBHOOK_TIMEOUT_SECONDS = 15
+
+Discord payload behavior in the reference:
+
+  - embed title: chapter title (or "One Piece Chapter N")
+  - embed url: chapter URL
+  - description: "A new One Piece chapter is out."
+  - color: orange (0xE67E22)
+  - timestamp: current UTC time
+  - footer: "weebcentral"
+  - if role ID configured for that destination:
+      content = "<@&ROLE_ID>"
+      allowed_mentions = { "parse": [], "roles": ["ROLE_ID"] }
+  - otherwise no content and no allowed_mentions
+  - test payload title starts with "[TEST]" and says it is not a new chapter
+
+The new app should preserve the *behavioral spirit* of these rules:
+
+  - loud feed errors, never silent skips;
+  - per-destination delivery ledger;
+  - retry only the failed destination;
+  - quarantine permanently dead webhooks;
+  - optional role ping with allowed_mentions;
+  - test sends never touch chapter state;
+  - no webhook URL in durable public state.
+
+Do NOT copy the Python code literally. The web app is TypeScript. Do NOT copy
+the existing state file or production webhook URLs. Do NOT reuse the exact
+"missing role ping fails the run" semantics for the website: in the website an
+empty role ID is a valid choice (no ping); an invalid non-empty role ID is a
+form validation error. The website must never fail a chapter delivery because
+an optional ping was left blank.
+
+--------------------------------------------------------------------------------
+3. PRODUCT REQUIREMENTS
+--------------------------------------------------------------------------------
+
+3.1 Authentication
+
+- Discord OAuth only for v1. No passwords, no email magic links, no GitHub login.
+- Users already need Discord to receive alerts, so Discord login is the natural
+  identity.
+- Use Discord OAuth scopes `identify`. Do not request bot permissions.
+- Store Discord user ID, display name, and avatar URL through Better Auth.
+- Sign out must invalidate the session.
+- If OAuth fails, show a clear error and a retry path; do not dump provider
+  errors containing secrets.
+- Account deletion must be available in Settings with an explicit confirmation.
+
+3.2 Series
+
+- A user can add multiple series. Defaults:
+    MAX_SERIES_PER_USER = 5
+    MAX_ACTIVE_SERIES = 150 globally
+- The user adds a series by pasting a weebcentral series link, for example:
+    https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK/One-Piece
+- The server must derive the RSS feed:
+    https://weebcentral.com/series/<id>/rss
+- The server must fetch and validate the feed before saving.
+- Show a preview: series title, latest chapter number, latest chapter title,
+  latest chapter link, and whether the series is already tracked.
+- If the series is already globally tracked, adding it must reuse the existing
+  series row and not cause another feed poll.
+- Each subscription belongs to exactly one destination in v1. A user can have
+  multiple destinations and route different series to different destinations.
+- Pause/resume and remove subscription.
+- No backfill when adding a series. The first alert is the next newly detected
+  chapter. Optional "send latest now" can be a later feature, not v1.
+
+3.3 Destinations
+
+- A user can add multiple Discord webhook destinations. Defaults:
+    MAX_DESTINATIONS_PER_USER = 2
+- Fields:
+    label (user-facing, e.g. "One Piece channel")
+    webhook URL (secret, write-only)
+    optional role ID
+- On save, the server GETs the Discord webhook to verify it exists and to read
+  its name/channel/guild metadata. This sends no message.
+- The full webhook URL must never be returned to the browser after save. Show
+  the label, the channel/guild name, and "Webhook configured".
+- A user can replace a webhook URL. Replacement re-verifies it and resets any
+  failure/disabled state.
+- A user can test a destination. Test sends go through the real POST path,
+  are marked "[TEST]", and never touch chapter or delivery state.
+- A destination can be deleted only if no active subscription uses it. If it is
+  in use, return 409 and tell the user to reassign those series first.
+- If Discord returns 401/403/404, mark the destination `disabled`, stop
+  retrying it, and show a banner/status in the UI. Do not delete it silently.
+- If the user re-tests or replaces the URL and it succeeds, re-enable it.
+
+3.4 Alerts
+
+- Post a Discord embed with:
+    title: series title + chapter label (or the RSS item title)
+    url: chapter link
+    description: "A new chapter of <series> is out."
+    color: vermilion/orange
+    timestamp: current UTC time
+    footer: "Chapter Tracker"
+- If role ID configured:
+    content: "<@&ROLE_ID>"
+    allowed_mentions: { "parse": [], "roles": ["ROLE_ID"] }
+  otherwise omit both fields.
+- One message per chapter per destination. The delivery table's unique
+  constraint is the last line of defense.
+- If a webhook fails transiently, retry it later. Do not re-send to destinations
+  that already succeeded.
+- If a webhook is permanently dead, disable it and surface it in the UI.
+- Do not claim "exactly once" in docs. Discord webhooks do not support
+  idempotency keys. The design gives at-most-one normal notification and may
+  duplicate only in the rare ambiguous success/timeout case. Document that.
+
+3.5 Activity
+
+- Show a delivery log for the signed-in user: series, chapter, destination
+  label, status, timestamp, sanitized error.
+- Statuses: queued, sent, retrying, failed, skipped/disabled.
+- Limit to the most recent 50 by default; cursor pagination if easy.
+- Never show full webhook URLs or role IDs to other users.
+- Retain activity for 30 days, then prune via cron.
+
+3.6 Free capacity / waitlist
+
+- The product is free but capacity-capped.
+- Count "active accounts" as users with at least one active subscription.
+- If MAX_ACCOUNTS is reached, a new user can still sign in with Discord but
+  cannot add their first series. Show a waitlist screen and store their Discord
+  ID/username in a waitlist table.
+- Existing users must not be evicted or degraded when the cap is reached.
+- Show remaining capacity in the UI (e.g. "12 of 100 launch spots left") without
+  exposing personal data.
+- No automated invite system in v1. An operator can query D1/manual admin later.
+- Default caps (all configurable by environment variables):
+    MAX_ACCOUNTS = 100
+    MAX_SERIES_PER_USER = 5
+    MAX_DESTINATIONS_PER_USER = 2
+    MAX_ACTIVE_SERIES = 150
+    POLL_INTERVAL_MINUTES = 30
+    CRON_BATCH_SERIES = 20
+    CRON_BATCH_DELIVERIES = 20
+    MAX_TEST_SENDS_PER_HOUR = 5
+- The numbers are a starting budget for Cloudflare free. Do not raise them
+  without a load test and a written capacity note.
+
+3.7 Explicit non-goals for v1
+
+- No Discord bot, no channel/role pickers, no Manage Webhooks permission.
+- No manga sources other than weebcentral.
+- No chapter content hosting or scraping beyond RSS metadata and links.
+- No email login, email notifications, or password reset.
+- No payments, ads, analytics, tracking pixels, or third-party marketing.
+- No team accounts or shared workspaces.
+- No mobile apps.
+- No realtime updates; a normal refresh is enough.
+- No backfill of old chapters.
+- No custom domain requirement.
+- No "unlimited" plan.
+
+--------------------------------------------------------------------------------
+4. FREE-TIER BUDGET AND WHY THE LIMITS EXIST
+--------------------------------------------------------------------------------
+
+Cloudflare Workers Free (current limits to verify at build time):
+
+- 100,000 Worker requests per day, account-wide, resetting 00:00 UTC.
+- 10 ms CPU time per HTTP/Cron invocation on Free.
+- 50 subrequests per invocation on Free.
+- 5 Cron Triggers per account.
+- Static asset requests are free and do not consume Worker requests.
+- D1 Free: 5 million rows read/day, 100,000 rows written/day, 5 GB total.
+- D1 queries per Worker invocation: 50 on Free.
+- Exceeding a daily limit makes requests/queries fail until the reset.
+- Workers Paid is $5/month, but this project must not require it.
+
+Design consequences:
+
+- The React frontend must be static assets. Do not do SSR.
+- The API must be small and efficient. No heavy libraries or large payloads.
+- Cron runs every 5 minutes; each series is due every POLL_INTERVAL_MINUTES
+  with jitter. Do not poll all series at once.
+- Each Cron invocation processes at most CRON_BATCH_SERIES feed fetches and
+  CRON_BATCH_DELIVERIES sends. This keeps subrequests under 50 with headroom.
+- If more series are due, leave them due for the next run. The effective check
+  interval may stretch under load; this is better than failing.
+- One feed poll is shared by every user subscribed to that series.
+- No per-user polling. No per-user cron. No per-user webhook requests except
+  explicit test sends.
+- Use D1 batch operations where possible.
+- Store only text/JSON; no images, cover art, or file storage.
+- Cleanup old job_runs/activity rows in cron to keep D1 small.
+- No Cloudflare Queues/Workflows/Durable Objects in v1 unless they are proven
+  free and necessary. A D1 lock is enough to serialize cron runs.
+
+Rough budget check to include in the README:
+
+  150 series × 2 checks/hour = 300 feed checks/hour.
+  At 20 series per 5-minute run, 240 checks/hour; under sustained maximum load
+  the effective interval stretches to ~37.5 minutes. That is acceptable and
+  must be visible in the UI ("next check" can be approximate).
+  100 users × ~20 app requests/day = ~2,000 Worker requests/day.
+  288 cron invocations/day.
+  Feed checks and deliveries are subrequests, not necessarily daily Worker
+  requests, but still count toward subrequest and D1 budgets.
+  The true bottleneck to measure is CPU time and D1 queries/writes.
+
+The agent must run a local synthetic load test with 100 users, 150 series, and
+a batch of deliveries. If the free plan cannot handle the defaults, lower the
+caps and document why. Do not quietly switch to paid.
+
+--------------------------------------------------------------------------------
+5. RECOMMENDED STACK
+--------------------------------------------------------------------------------
+
+Use current stable versions available at build time. Verify with official docs;
+do not guess APIs from memory.
+
+Core:
+
+- Cloudflare Workers
+- Cloudflare D1
+- Cloudflare Cron Triggers
+- Cloudflare static assets
+- TypeScript, strict
+- React + Vite
+- Hono for the Worker API
+- Drizzle ORM + Drizzle Kit for D1
+- Better Auth with the Discord provider, D1 adapter/session storage
+- Zod for request validation
+- TanStack Query for client data fetching/cache
+- React Router for SPA routes
+- Tailwind CSS for styling tokens/layout
+- Radix UI primitives for accessible dialogs, menus, tooltips, tabs
+- fast-xml-parser for RSS (or another proven Workers-compatible XML parser)
+- Vitest, @cloudflare/vitest-pool-workers, React Testing Library
+- Playwright for browser flows
+- ESLint + Prettier (or Biome) and TypeScript typecheck
+- npm as the package manager
+
+Why this stack:
+
+- One deployment serves the static SPA and the API.
+- D1 is free and sufficient for small relational data.
+- Cron Trigger runs feed checks without GitHub or a VPS.
+- Better Auth handles Discord OAuth and sessions without an auth vendor.
+- Web Crypto provides AES-GCM for webhook encryption.
+- React/Vite gives a fast static frontend; no SSR cost.
+
+Do not use:
+
+- Next.js/SSR unless you can prove it stays within free CPU and static-asset
+  limits. The default plan is a Vite SPA.
+- A separate Node server, Express server, VPS, Docker, or always-on process.
+- Prisma if it requires a non-Workers engine in this setup; Drizzle is preferred.
+- Clerk/Auth0/Supabase/Auth.js unless Better Auth proves impossible. Adding a
+  second vendor complicates free-tier accounting.
+- shadcn/ui defaults as the visual design. Radix primitives are fine; style them
+  from scratch.
+
+Repository shape (suggested):
+
+  /
+    package.json
+    package-lock.json
+    tsconfig.json
+    vite.config.ts
+    wrangler.jsonc
+    drizzle.config.ts
+    .gitignore
+    .dev.vars.example
+    README.md
+    LICENSE
+    PRIVACY.md
+    TERMS.md
+    src/
+      client/
+        main.tsx
+        App.tsx
+        routes/
+        components/
+        lib/
+        styles/
+      worker/
+        index.ts
+        api/
+        auth.ts
+        db/
+          schema.ts
+          queries.ts
+        lib/
+          crypto.ts
+          discord.ts
+          weebcentral.ts
+          capacity.ts
+          rate-limit.ts
+        jobs/
+          poll-feeds.ts
+          deliver.ts
+      shared/
+        types.ts
+        constants.ts
+    migrations/
+    tests/
+      unit/
+      worker/
+      e2e/
+    public/
+      fonts/
+      favicon.svg
+    .github/workflows/ci.yml
+
+Keep client and worker code separated. Never import server-only code (DB,
+encryption key, auth secrets) into the client bundle. Verify the built client
+does not contain secret names/values.
+
+--------------------------------------------------------------------------------
+6. REPOSITORY AND GITHUB SETUP
+--------------------------------------------------------------------------------
+
+6.1 Folder
+
+Create the app in:
+
+  /Users/rayhan/Desktop/Projects/Chapter Tracker Web
+
+The prompt file lives one level above this folder. Do not put the prompt file
+inside the app repo unless you move it to `docs/AGENT_BUILD_PROMPT.txt` after
+scaffolding.
+
+6.2 New GitHub repository
+
+Create a NEW repository, not a branch of the existing one.
+
+Recommended name: `chapter-tracker-web`
+
+Steps:
+
+  cd "/Users/rayhan/Desktop/Projects/Chapter Tracker Web"
+  git init
+  git branch -M main
+
+  # after the first working commit:
+  gh auth status
+  gh repo create chapter-tracker-web --public --source=. --remote=origin --push
+
+If `gh` is not authenticated, ask the user to run `gh auth login`. Do not use
+the existing repo's remote. Verify:
+
+  git remote -v
+
+It must point at the new repo, not `raYhanryd/onepiece-tracker`.
+
+Set metadata after creation:
+
+  gh repo edit --description "A free, multi-series manga chapter tracker for Discord." \
+    --add-topic cloudflare-workers \
+    --add-topic d1 \
+    --add-topic discord \
+    --add-topic manga \
+    --add-topic rss \
+    --add-topic react \
+    --add-topic typescript
+
+Use an MIT license. The copyright holder is `raYhanryd` unless the user tells
+you otherwise. Add a README, PRIVACY.md, and TERMS.md (clearly marked as drafts
+for the operator to review).
+
+6.3 Git hygiene
+
+.gitignore must include:
+
+  node_modules/
+  dist/
+  .wrangler/
+  .dev.vars
+  .env
+  .env.*
+  !.dev.vars.example
+  coverage/
+  playwright-report/
+  test-results/
+  .DS_Store
+  *.log
+
+Never commit:
+
+- Discord webhook URLs
+- Discord client secret
+- Better Auth secret
+- encryption key
+- Cloudflare API tokens
+- D1 database dumps with user data
+- `.dev.vars`
+- screenshots containing secrets
+
+6.4 CI
+
+Add `.github/workflows/ci.yml` that runs on push and pull request:
+
+  npm ci
+  npm run lint
+  npm run typecheck
+  npm test
+  npm run build
+  npx wrangler deploy --dry-run
+
+Use Node 22+ and no production secrets. The dry-run must not deploy anything.
+Do not add automatic production deployment in v1. A human deploys after review.
+
+6.5 README
+
+The README must include:
+
+- what the app is;
+- the free-tier capacity model and the exact default caps;
+- architecture diagram;
+- local setup;
+- Discord OAuth app setup;
+- D1 creation/migrations;
+- environment variable table;
+- Cloudflare deployment with `wrangler`;
+- how to run tests;
+- how to test the scheduled handler locally;
+- security model;
+- privacy/account deletion;
+- known limitations (free tier, no SLA, no Discord bot, weebcentral only);
+- a warning not to point the website at the same webhook as the existing
+  GitHub Action;
+- attribution/not-affiliated note;
+- license.
+
+6.6 License and docs
+
+- `LICENSE`: MIT.
+- `PRIVACY.md`: data collected, purpose, retention, deletion, cookies, contact.
+- `TERMS.md`: free/best-effort service, no SLA, acceptable use, no affiliation
+  with Discord or weebcentral, no chapter content hosted.
+- Both are drafts; tell the user to review before public launch.
+
+--------------------------------------------------------------------------------
+7. DATA MODEL
+--------------------------------------------------------------------------------
+
+Use Drizzle with D1. Let Better Auth's CLI generate its own tables
+(`user`, `session`, `account`, `verification`) rather than hand-writing them.
+Then add the app tables below. Use text IDs from `crypto.randomUUID()` and
+UTC ISO-8601 strings for app timestamps.
+
+Enable and respect foreign keys. D1 is SQLite. Use `ON DELETE CASCADE` for
+user-owned data. Use `ON DELETE RESTRICT` for destinations referenced by
+subscriptions; the API must explain the conflict.
+
+Suggested schema:
+
+  series (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL DEFAULT 'weebcentral',
+    external_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    feed_url TEXT NOT NULL,
+    site_url TEXT NOT NULL,
+    latest_chapter_number REAL,
+    latest_chapter_label TEXT,
+    latest_chapter_title TEXT,
+    latest_chapter_url TEXT,
+    latest_published_at TEXT,
+    next_check_at TEXT NOT NULL,
+    last_checked_at TEXT,
+    last_error TEXT,
+    etag TEXT,
+    last_modified TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(source, external_id)
+  );
+
+  chapters (
+    id TEXT PRIMARY KEY,
+    series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+    chapter_number REAL NOT NULL,
+    chapter_label TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    published_at TEXT,
+    discovered_at TEXT NOT NULL,
+    UNIQUE(series_id, chapter_number)
+  );
+
+  destinations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    webhook_ciphertext TEXT NOT NULL,
+    webhook_iv TEXT NOT NULL,
+    webhook_fingerprint TEXT NOT NULL,
+    guild_id TEXT,
+    guild_name TEXT,
+    channel_id TEXT,
+    channel_name TEXT,
+    role_id TEXT,
+    status TEXT NOT NULL DEFAULT 'active'
+      CHECK(status IN ('active', 'disabled')),
+    last_error TEXT,
+    last_checked_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, webhook_fingerprint)
+  );
+
+  subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+    destination_id TEXT NOT NULL REFERENCES destinations(id) ON DELETE RESTRICT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, series_id)
+  );
+
+  deliveries (
+    id TEXT PRIMARY KEY,
+    chapter_id TEXT NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+    destination_id TEXT NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending', 'sent', 'retry', 'failed', 'skipped')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT,
+    last_error TEXT,
+    sent_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(chapter_id, destination_id)
+  );
+
+  waitlist (
+    id TEXT PRIMARY KEY,
+    discord_id TEXT NOT NULL,
+    username TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(discord_id)
+  );
+
+  job_locks (
+    name TEXT PRIMARY KEY,
+    locked_until TEXT NOT NULL
+  );
+
+  job_runs (
+    id TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    status TEXT NOT NULL,
+    feeds_checked INTEGER NOT NULL DEFAULT 0,
+    chapters_found INTEGER NOT NULL DEFAULT 0,
+    deliveries_sent INTEGER NOT NULL DEFAULT 0,
+    errors INTEGER NOT NULL DEFAULT 0,
+    detail TEXT
+  );
+
+  rate_limits (
+    key TEXT PRIMARY KEY,
+    window_start TEXT NOT NULL,
+    count INTEGER NOT NULL
+  );
+
+Indexes:
+
+  CREATE INDEX idx_series_due ON series(active, next_check_at);
+  CREATE INDEX idx_subscriptions_user ON subscriptions(user_id);
+  CREATE INDEX idx_subscriptions_series ON subscriptions(series_id);
+  CREATE INDEX idx_destinations_user ON destinations(user_id);
+  CREATE INDEX idx_chapters_series ON chapters(series_id, chapter_number);
+  CREATE INDEX idx_deliveries_due ON deliveries(status, next_attempt_at);
+  CREATE INDEX idx_deliveries_destination ON deliveries(destination_id);
+  CREATE INDEX idx_job_runs_started ON job_runs(started_at);
+
+Important:
+
+- `series` is shared globally. Two users tracking One Piece must share one row.
+- `subscriptions` is per user/series and points to one destination.
+- `chapters` is shared globally and unique per series/number.
+- `deliveries` is per chapter/destination and must be unique.
+- A series should be polled only if at least one active subscription exists.
+- Do not store webhook URLs in plaintext.
+- Do not store role IDs in public/shared data. They are per-destination.
+- App timestamps are UTC ISO strings; Better Auth may use integer timestamps;
+  keep its schema as generated.
+- Do not assume D1 supports interactive transactions. Use `db.batch`, unique
+  constraints, and atomic UPDATE/INSERT patterns.
+- Every query must include `WHERE user_id = ?` (or a verified join) for
+  user-owned records.
+
+Capacity queries:
+
+  active accounts:
+    SELECT COUNT(DISTINCT user_id) FROM subscriptions WHERE active = 1
+
+  user series count:
+    SELECT COUNT(*) FROM subscriptions WHERE user_id = ? AND active = 1
+
+  user destination count:
+    SELECT COUNT(*) FROM destinations WHERE user_id = ?
+
+  global active series:
+    SELECT COUNT(*) FROM series WHERE active = 1
+
+Race conditions: use a D1 batch/atomic check or a unique constraint plus
+verification. If two requests race to add the first subscription at the cap,
+one must fail cleanly with CAPACITY_REACHED. Do not allow the cap to be
+exceeded silently.
+
+--------------------------------------------------------------------------------
+8. AUTHENTICATION
+--------------------------------------------------------------------------------
+
+Use Better Auth with the Discord provider. Follow its current Cloudflare/D1
+guide; do not guess configuration.
+
+Server setup:
+
+- Create the auth instance per request with the Worker `env`.
+- `baseURL` must come from `APP_URL`, never from the request Host header.
+- `trustedOrigins` must include `APP_URL` and localhost in development.
+- `secret` = `BETTER_AUTH_SECRET`.
+- Sessions stored in D1.
+- Discord client ID/secret from env/secrets.
+- Mount Better Auth at `/api/auth/*`.
+- Use `nodejs_compat` if required by the current Better Auth version.
+- Secure cookies: HttpOnly, Secure in production, SameSite=Lax, Path=/.
+- No session tokens in localStorage.
+
+Discord application setup (document in README):
+
+1. Discord Developer Portal -> Applications -> New Application.
+2. OAuth2 -> add redirect:
+   `https://<worker-subdomain>.workers.dev/api/auth/callback/discord`
+   plus `http://localhost:8787/api/auth/callback/discord` for local dev.
+3. Copy client ID and client secret. Never commit them.
+4. No bot token, no bot permissions, no privileged intents.
+
+Session middleware:
+
+- `GET /api/me`: return `{ user: { id, name, image }, capacity }` or 401.
+- Protected API routes: resolve session, 401 if absent.
+- Mutations: verify same-origin (Origin/Sec-Fetch-Site) in addition to
+  SameSite cookies.
+- Never trust a user ID, destination ID, subscription ID, or role ID from the
+  client without an ownership query.
+
+Auth tests:
+
+- Unauthenticated protected route -> 401.
+- User A cannot read/update/delete user B's subscription or destination.
+- Expired/invalid session -> 401.
+- OAuth callback error -> friendly error, no secret leakage.
+- Logout invalidates the session.
+- Account deletion cascades user-owned data.
+
+--------------------------------------------------------------------------------
+9. API CONTRACT
+--------------------------------------------------------------------------------
+
+All API routes are same-origin JSON under `/api`. Use Zod validation. Error
+shape:
+
+  { "error": { "code": "STRING_CODE", "message": "Human-safe message",
+               "field": "optional" } }
+
+Never include stack traces, SQL, webhook URLs, tokens, or secrets.
+
+Public:
+
+  GET /api/health
+    -> 200 { ok: true, db: "ok" }
+    -> 503 { ok: false, db: "error" }
+
+  GET /api/status
+    -> 200 {
+         acceptingUsers: boolean,
+         accountsUsed: number,
+         accountsMax: number,
+         activeSeries: number,
+         activeSeriesMax: number
+       }
+    No personal data.
+
+Authenticated:
+
+  GET /api/me
+    -> { user: { id, name, image }, capacity: {...}, waitlisted: boolean }
+
+  POST /api/series/preview
+    body { url: string }
+    -> { series: {
+           externalId, title, siteUrl, feedUrl,
+           latest: { number, label, title, url, publishedAt }
+         },
+         alreadyTracked: boolean }
+
+  POST /api/series
+    body { url: string, destinationId: string }
+    -> 201 { subscription: {...}, series: {...} }
+    errors: CAPACITY_REACHED, SERIES_LIMIT, DESTINATION_LIMIT,
+            SERIES_CAPACITY_REACHED, INVALID_SERIES_URL, FEED_UNAVAILABLE,
+            DESTINATION_NOT_FOUND, SERIES_ALREADY_TRACKED
+
+  GET /api/series
+    -> { subscriptions: [
+         { id, active, createdAt,
+           series: { id, title, latestChapterNumber, latestChapterLabel,
+                     latestChapterTitle, latestChapterUrl, lastCheckedAt,
+                     nextCheckAt, lastError },
+           destination: { id, label, status } }
+       ] }
+
+  PATCH /api/series/:subscriptionId
+    body { active: boolean }
+    -> { subscription: {...} }
+
+  DELETE /api/series/:subscriptionId
+    -> 204
+
+  GET /api/destinations
+    -> { destinations: [
+         { id, label, status, guildName, channelName, roleId,
+           lastError, lastCheckedAt, inUseBy: number }
+       ] }
+    Never return webhook_ciphertext/IV/fingerprint to the client.
+
+  POST /api/destinations
+    body { label: string, webhookUrl: string, roleId?: string }
+    -> 201 { destination: {...} }
+    Server GETs the webhook first; 400 if invalid/dead.
+
+  PATCH /api/destinations/:id
+    body { label?, webhookUrl?, roleId? }
+    If webhookUrl is present, verify it, re-encrypt it, and reset status.
+    -> { destination: {...} }
+
+  DELETE /api/destinations/:id
+    -> 204, or 409 DESTINATION_IN_USE
+
+  POST /api/destinations/:id/test
+    -> 200 { ok: true } or 502 { error: ... }
+    Rate-limited. Sends a [TEST] embed. No state changes.
+
+  GET /api/activity?limit=50&cursor=...
+    -> { items: [
+         { id, status, attempts, lastError, sentAt, createdAt,
+           chapter: { number, label, title, url },
+           series: { title },
+           destination: { label } }
+       ], nextCursor? }
+
+  POST /api/account/delete
+    body { confirm: "DELETE" }
+    -> 204
+    Delete the user and user-owned data. Shared series/chapters remain.
+
+Do not add a public "run cron now" endpoint. For local tests, call the exported
+scheduled handler directly. If you add a dev-only trigger, gate it behind
+`ENVIRONMENT === "development"` and an explicit `DEV_CRON_SECRET`, and prove
+it cannot run in production.
+
+Rate limits to implement server-side:
+
+- preview: 10/minute/user
+- add/patch series: 30/minute/user
+- add/patch destinations: 10/minute/user
+- test send: MAX_TEST_SENDS_PER_HOUR per user/destination
+- login: Better Auth's rate limiting plus Cloudflare-level protection if
+  available. Do not build a fragile in-memory limiter; use D1 or an available
+  binding.
+  Return 429 with Retry-After.
+
+--------------------------------------------------------------------------------
+10. WEEBCENTRAL SERIES INGESTION
+--------------------------------------------------------------------------------
+
+10.1 URL validation
+
+Accept only:
+
+  https://weebcentral.com/series/<id>
+  https://weebcentral.com/series/<id>/<slug>
+  https://www.weebcentral.com/series/<id>...
+  an `/rss` variant of the above
+
+Rules:
+
+- HTTPS only.
+- Host must be exactly `weebcentral.com` or `www.weebcentral.com`.
+- No credentials in URL, no non-standard port, no fragment.
+- Path must start with `/series/`.
+- Extract `<id>` as the first path segment after `/series/`.
+  IDs are alphanumeric; validate with `/^[A-Za-z0-9]+$/`.
+- Normalize to:
+    feedUrl = `https://weebcentral.com/series/${id}/rss`
+    siteUrl = `https://weebcentral.com/series/${id}`
+- Reject all other hosts. This is SSRF protection, not a convenience check.
+- After fetch, if the response URL redirects off the allowlisted host, reject
+  it. Do not follow arbitrary redirects.
+
+10.2 Feed fetch
+
+- `fetch(feedUrl, { headers: { "User-Agent": <current Chrome UA>,
+  "Accept": "application/rss+xml, application/xml, text/xml" } })`
+- Timeout 15 seconds via AbortController.
+- Handle non-200: throw a typed `FeedError` with status.
+- Parse XML with a proven parser. RSS shape:
+    rss -> channel -> item[]
+  Handle a single item being an object vs array.
+- Required item fields: title, link.
+- Extract chapter number with `/Chapter\s+(\d+(?:\.\d+)?)/i`.
+  If it does not match, reject as unsupported feed; do not guess.
+- Convert `"1089.5"` to 1089.5; `"1089"` to 1089.
+- Keep the original title and URL.
+- Read pubDate if present; otherwise empty.
+- Store ETag/Last-Modified if available and send conditional headers next time.
+- 304 Not Modified is a successful check; update last_checked_at, leave latest
+  chapter unchanged.
+- Never treat a fetch/parse error as "no new chapter". Surface it.
+
+10.3 Preview
+
+`POST /api/series/preview` must:
+
+- validate URL;
+- fetch/parse feed;
+- return series metadata and latest chapter;
+- not write to D1;
+- rate-limit;
+- return a friendly error for invalid/unsupported feeds.
+
+10.4 Add series
+
+- Re-validate URL on the server. Never trust the preview response.
+- Upsert the global series by `(source, external_id)`.
+- If it exists, reuse it; update title/feed/site only if safe.
+- If it is new and `MAX_ACTIVE_SERIES` is reached, return
+  `SERIES_CAPACITY_REACHED` unless the series already exists.
+- Check the user's active series count.
+- Check the destination belongs to the user and is active.
+- Create subscription with `destination_id`.
+- Set `next_check_at` to now + jitter, not immediately (avoid a thundering herd).
+- No backfill. Do not create delivery rows for existing chapters.
+- Record the subscription creation time; only chapters discovered after the
+  subscription is active should notify it.
+
+10.5 Series comparison
+
+Use the same semantics as the reference:
+
+- stored latest chapter is null/missing -> treat as new/missing;
+- latest > stored -> new;
+- latest == stored -> same;
+- latest < stored -> older/reorder; ignore and keep state.
+
+For a newly created series, set its baseline latest chapter from the preview so
+existing chapters do not alert anyone. The next *new* chapter is the first alert.
+This is important for a fresh subscription.
+
+--------------------------------------------------------------------------------
+11. DESTINATIONS, ENCRYPTION, AND SSRF
+--------------------------------------------------------------------------------
+
+11.1 Discord webhook validation
+
+Accept only HTTPS URLs that look like:
+
+  https://discord.com/api/webhooks/<id>/<token>
+  https://discordapp.com/api/webhooks/<id>/<token>
+  https://canary.discord.com/api/webhooks/<id>/<token>
+  https://ptb.discord.com/api/webhooks/<id>/<token>
+
+Rules:
+
+- HTTPS only.
+- Host must be one of the allowlisted Discord hosts (or a discord.com subdomain
+  if you explicitly allow it; never arbitrary hosts).
+- Path segments must contain `webhooks` followed by at least two non-empty
+  segments (id, token).
+- No credentials in URL.
+- Reject localhost, private IPs, metadata endpoints, `file:`, `data:`, etc.
+  The allowlist is enough; do not add a generic URL fetcher.
+- This validation is used for save, test, and delivery.
+
+11.2 Verify on save
+
+- GET the webhook URL with a 10s timeout.
+- 200: parse JSON `{ name, channel_id, guild_id }`, optionally fetch channel/
+  guild names if the webhook response includes them. Do not send a message.
+- 401/403/404: reject as dead/unauthorized.
+- 429/5xx: reject with a retryable message; do not save a broken destination.
+- Store only display metadata (guild/channel names), ciphertext, IV, and a
+  SHA-256 fingerprint for duplicate detection.
+
+11.3 Encryption
+
+- Master key: `WEBHOOK_ENCRYPTION_KEY`, base64-encoded 32 random bytes, stored
+  as a Worker secret.
+- Generate a random 12-byte IV per encryption.
+- AES-256-GCM via `crypto.subtle`.
+- Store base64 ciphertext and base64 IV separately.
+- Prefix a version, e.g. `v1`, to support future key rotation.
+- Never return plaintext to the client after save.
+- Never log plaintext or full ciphertext.
+- Decrypt only inside the Worker, immediately before a send/test.
+- Duplicate detection uses SHA-256 of the URL per user, not the URL itself.
+- If decryption fails, mark the destination `disabled` and show "Re-add this
+  webhook" in the UI. Do not crash the whole cron.
+
+11.4 Role IDs
+
+- Optional. Empty/whitespace means no ping.
+- If provided, accept a bare numeric Discord snowflake (17–20 digits) or a
+  `<@&123...>` mention; normalize to bare digits.
+- Invalid non-empty input -> 400 validation error, not a silent omission.
+- Payload:
+    content: `<@&ROLE_ID>`
+    allowed_mentions: { parse: [], roles: [ROLE_ID] }
+- Without a role ID, omit both fields.
+- Explain in the UI that the role must be mentionable in Discord for a push
+  notification to reach members.
+- We cannot verify role membership without a bot; do not fake it.
+
+11.5 Webhook status
+
+- `active`: normal.
+- `disabled`: permanent 401/403/404 or decryption failure.
+- On disable, stop retrying and show a banner on Destinations and Activity.
+- A successful test or replacement re-enables.
+- Do not delete the destination automatically; the user may want to fix it.
+
+11.6 Test send
+
+- Server-side only.
+- Uses the real Discord POST path.
+- Payload title starts with `[TEST]`, description says it is not a new chapter.
+- Includes the role ping if configured.
+- Does not create chapters/deliveries, does not change series state.
+- Rate-limited.
+- Returns a safe error message on failure.
+
+--------------------------------------------------------------------------------
+12. SCHEDULER AND DELIVERY ENGINE
+--------------------------------------------------------------------------------
+
+12.1 Cron
+
+- One Cron Trigger: `*/5 * * * *` (every 5 minutes).
+- The Worker's `scheduled()` handler:
+  1. acquire a lock;
+  2. poll due series in a bounded batch;
+  3. process due deliveries in a bounded batch;
+  4. release lock;
+  5. record a job_runs row.
+
+Locking:
+
+- `job_locks` table with name `poll` and `locked_until`.
+- Atomically claim only if `locked_until < now`; set to now + 4 minutes.
+- If another run holds it, log and return. Never run two pollers concurrently.
+- Release/clear the lock in a finally block if possible. If the Worker dies,
+  the lease expires.
+
+12.2 Feed polling
+
+Select due series:
+
+  SELECT ...
+  FROM series s
+  WHERE s.active = 1
+    AND s.next_check_at <= :now
+    AND EXISTS (
+      SELECT 1 FROM subscriptions sub
+      WHERE sub.series_id = s.id AND sub.active = 1
+    )
+  ORDER BY s.next_check_at
+  LIMIT CRON_BATCH_SERIES
+
+For each:
+
+- Before fetching, set next_check_at = now + POLL_INTERVAL_MINUTES + jitter
+  (e.g. 0–5 min) so a failure does not cause an immediate retry loop.
+- Fetch with conditional headers.
+- 304: update last_checked_at, clear transient error, continue.
+- 200: parse. If no valid chapter, set last_error and schedule a sooner retry
+  (e.g. 10 min) without advancing state.
+- If chapter > stored latest:
+  - insert chapter row; unique constraint protects against races;
+  - update series latest fields;
+  - create delivery rows for every active subscription of this series.
+- If chapter == stored: update check time, clear transient error.
+- If chapter < stored: log a warning, do not advance state.
+- If series has no subscribers: set active = 0 or skip; do not poll forever.
+- Do not poll the same series twice in one run.
+
+Fanout:
+
+- For each active subscription, create a delivery row for the chapter/destination.
+- Use `INSERT OR IGNORE` / unique `(chapter_id, destination_id)`.
+- Do not create deliveries for subscriptions created after the chapter was
+  discovered. A subscription should only receive chapters found while it is
+  active; no backfill.
+- Cap deliveries per run; leave the rest queued.
+
+12.3 Delivery
+
+Select due deliveries:
+
+  status IN ('pending', 'retry')
+  AND next_attempt_at <= now
+  ORDER BY next_attempt_at
+  LIMIT CRON_BATCH_DELIVERIES
+
+For each:
+
+- Load destination. If disabled, mark skipped and continue.
+- Decrypt URL. If decryption fails, disable destination, mark failed.
+- Build payload:
+    title: series title + chapter label
+    url: chapter URL
+    description: "A new chapter of <series> is out."
+    color: vermilion/orange
+    timestamp: now
+    footer: "Chapter Tracker"
+    role content/allowed_mentions if configured.
+- POST with 15s timeout.
+- 200/204 -> `sent`, sent_at = now, attempts += 1, clear error.
+- 429 -> `retry`, use Retry-After if present; cap delay; schedule next attempt.
+- 5xx/network/timeout -> `retry`, exponential backoff (e.g. 1, 5, 15, 60
+  minutes with jitter), attempts += 1.
+- 401/403/404 -> `failed`, disable destination, save sanitized error.
+- Malformed URL -> `failed`, disable destination.
+- After max attempts (e.g. 5), mark `failed` but keep the row for the activity
+  log. Do not retry forever.
+- Never re-send a delivery already marked `sent`.
+- A destination that succeeded in an earlier run is never notified again for
+  that chapter.
+- Do not claim exactly-once; document the ambiguous-network caveat.
+
+Rate limits:
+
+- Discord webhook limits are per webhook. Send sequentially or with very low
+  concurrency. Honor 429 Retry-After.
+- Keep the cron batch small. Do not parallelize 20 POSTs without need; sequential
+  is safer and still fast enough.
+
+12.4 Cleanup
+
+- Delete job_runs older than 30 days.
+- Delete deliveries older than 90 days? Keep activity for 30 days; align.
+- Delete sent/failed deliveries older than 30 days.
+- Do not delete series/chapters that have active subscriptions.
+- Delete orphan series with no subscriptions after a grace period, or set
+  inactive. Keep it simple: leave them, but do not poll them.
+
+12.5 Status and capacity
+
+- `GET /api/status` returns remaining capacity.
+- UI shows "Next check in ~X minutes" based on next_check_at; under backlog it
+  may be later. Label it approximate.
+- A "capacity reached" state must be explicit and must not look like a bug.
+- If D1/Worker returns quota errors, show a service-unavailable state and log
+  safely. Do not retry in a tight loop.
+
+12.6 Pseudo-code
+
+  scheduled(event, env, ctx) {
+    if (!await acquireLock(env.DB, "poll", 4 minutes)) return;
+    try {
+      const run = await startJobRun(env.DB);
+      const series = await selectDueSeries(env.DB, MAX_ACTIVE_SERIES, now);
+      for (const s of series) {
+        await markNextCheck(env.DB, s.id, now);
+        try {
+          const feed = await fetchFeed(s.feed_url, s.etag, s.last_modified);
+          if (feed.notModified) continue;
+          const chapter = parseLatestChapter(feed);
+          if (isNew(s, chapter)) {
+            await recordChapterAndQueueDeliveries(env.DB, s, chapter);
+          }
+        } catch (err) {
+          await recordSeriesError(env.DB, s.id, safeError(err));
+        }
+      }
+      const due = await selectDueDeliveries(env.DB, 20, now);
+      for (const d of due) await deliverOne(env.DB, d);
+      await finishJobRun(...);
+    } finally {
+      await releaseLock(env.DB, "poll");
+    }
+  }
+
+--------------------------------------------------------------------------------
+13. SECURITY, PRIVACY, AND ABUSE
+--------------------------------------------------------------------------------
+
+13.1 Secrets
+
+Worker secrets:
+
+  BETTER_AUTH_SECRET          long random string
+  DISCORD_CLIENT_SECRET       Discord OAuth app secret
+  WEBHOOK_ENCRYPTION_KEY      base64 32-byte key
+  DEV_CRON_SECRET             optional, dev only; never production
+
+Public vars:
+
+  APP_URL                     exact public origin
+  DISCORD_CLIENT_ID           public OAuth client ID
+  MAX_ACCOUNTS
+  MAX_SERIES_PER_USER
+  MAX_DESTINATIONS_PER_USER
+  MAX_ACTIVE_SERIES
+  POLL_INTERVAL_MINUTES
+  CRON_BATCH_SERIES
+  CRON_BATCH_DELIVERIES
+  MAX_TEST_SENDS_PER_HOUR
+
+Never expose secrets to the client. Vite only exposes `VITE_*` variables; do
+not put secrets in them. Check the built bundle for accidental secret names.
+
+13.2 Authorization
+
+- Every user-owned query must include user_id ownership.
+- Never accept a destination_id/series_id/subscription_id without verifying it
+  belongs to the session user.
+- Return 404 (not 403) for another user's resource to avoid enumeration.
+- Deleting a destination in use returns 409.
+- Adding a subscription with another user's destination is impossible.
+- Tests must prove user A cannot affect user B.
+
+13.3 CSRF / same-origin
+
+- Same-origin SPA and API; no wildcard CORS.
+- Cookies HttpOnly, Secure (production), SameSite=Lax.
+- Mutation routes verify Origin/Sec-Fetch-Site.
+- Better Auth handles OAuth state. Do not implement your own OAuth state.
+- Post-login return path must be a local path only; reject `//evil.com`.
+
+13.4 SSRF
+
+- Only exact weebcentral hosts for feeds.
+- Only allowlisted Discord hosts for webhooks.
+- No generic proxy/fetch endpoint.
+- Reject redirects off the allowlist.
+- Do not allow private IPs, localhost, metadata services, or file/data URLs.
+- Keep timeouts.
+
+13.5 XSS / headers
+
+- React escapes by default; no `dangerouslySetInnerHTML`.
+- No user HTML in embeds or UI.
+- Set security headers: CSP, X-Content-Type-Options, Referrer-Policy,
+  Permissions-Policy, frame-ancestors 'none', HSTS in production.
+- Content Security Policy must allow your static assets/fonts; do not add
+  `unsafe-eval` in production.
+- Use HTTPS only.
+
+13.6 Abuse
+
+- Account cap, per-user caps, preview/edit/test rate limits.
+- Webhook URLs are secrets; never display them after save.
+- A user can still spam their own webhook via test sends; rate-limit.
+- No public unauthenticated write endpoints.
+- Monitor job_runs; a single series with a failing feed should not block all.
+- Keep logs free of URLs, tokens, cookies, Discord IDs beyond what is necessary.
+- Do not add analytics in v1.
+
+13.7 Privacy
+
+- Data: Discord ID/name/avatar, session data, series subscriptions, encrypted
+  webhook URLs, role IDs, delivery metadata, waitlist entry.
+- Purpose: deliver chapter alerts and operate the service.
+- Storage: Cloudflare D1; encrypted at rest by Cloudflare, plus app-level
+  encryption for webhook URLs.
+- Retention: activity/job logs 30 days; account data until deletion; waitlist
+  until capacity opens or 90 days.
+- Account deletion: delete user, sessions, subscriptions, destinations,
+  deliveries, waitlist entry; shared series/chapters remain.
+- No sale of data; no third-party analytics; no marketing email.
+- Essential cookies only. No cookie banner unless legally required; document.
+- Contact placeholder in PRIVACY.md; tell the operator to fill it.
+- Not affiliated with Discord or weebcentral.
+
+13.8 Legal/content
+
+- Store only chapter metadata and links from RSS; do not host chapter pages or
+  images.
+- Link users to weebcentral for the chapter.
+- Respect weebcentral's terms/robots and rate limits.
+- Do not bypass paywalls, authentication, or anti-bot protections.
+- If the feed disappears or terms change, surface an error and document it.
+- Terms are a draft; operator must review.
+
+--------------------------------------------------------------------------------
+14. UI AND UX BRIEF — NO AI SLOP
+--------------------------------------------------------------------------------
+
+14.1 Design thesis
+
+"An editorial manga release desk." It should feel like a thoughtful reading
+index or a small press's release board, not a generic SaaS dashboard and not a
+landing-page template.
+
+Principles:
+
+- App first, marketing second. The dashboard is the product.
+- Dense but calm. Real data, clear hierarchy, no filler.
+- One accent color. Paper/ink palette. Thin rules. Restrained radii.
+- No purple/blue gradient blobs. No glassmorphism. No huge hero. No emoji.
+- No fake testimonials, fake logos, fake stats, or AI-generated illustrations.
+- No giant rounded cards everywhere. Use rows, rules, and a detail panel.
+- No "supercharge", "seamless", "AI-powered", "unlock", "revolutionize".
+- No default shadcn look. Radix primitives, styled by you.
+- No more than two typefaces plus one mono. Self-host open-source fonts.
+
+14.2 Visual tokens
+
+  --paper: #F4EEE3
+  --paper-raised: #FBF7EF
+  --ink: #17130F
+  --ink-soft: #4E453B
+  --muted: #75695B
+  --line: #D8CCBA
+  --line-strong: #B9A992
+  --accent: #D8552F       (vermilion)
+  --accent-ink: #FFF7F1
+  --moss: #5C705B        (healthy/success)
+  --amber: #B7791F       (retrying/warning)
+  --danger: #9E3A32
+  --focus: #2F5D8A
+
+Typography:
+
+- Display: Fraunces or Newsreader, self-hosted WOFF2.
+- UI/body: Public Sans or Source Sans 3, self-hosted.
+- Metadata/labels: IBM Plex Mono, self-hosted.
+- Headings can use a tight serif; body 15–16px; metadata 11–12px uppercase with
+  letter-spacing.
+- Do not use Inter/Geist as the entire personality.
+
+Layout:
+
+- Desktop: 220px left rail, main content max 1120px, optional right detail
+  drawer. Top bar with page title and account menu.
+- Mobile: top bar + bottom nav (Series, Destinations, Activity, Settings).
+- Use 1px rules and whitespace instead of card shadows.
+- 6–8px radii max; buttons can be 4–6px.
+- Paper texture can be an extremely subtle CSS noise; skip if it hurts
+  performance.
+- Focus rings visible, 2px accent/focus color.
+
+14.3 Pages / routes
+
+  /                  Landing. If signed in, redirect /dashboard.
+  /login             Discord login button + short explanation.
+  /dashboard         Series list + capacity + add series.
+  /series/:id        Series detail/drawer: latest chapter, destination,
+                     pause/remove, recent deliveries for that series.
+  /destinations      Webhook destinations list + add/test/replace.
+  /activity          Delivery log with status filters.
+  /settings          Account info, privacy links, delete account.
+  /waitlist          At-capacity explanation.
+
+Landing copy direction:
+
+  H1: "Your manga releases, without the refresh loop."
+  Sub: "Track weebcentral series. Get a clean Discord alert when a new
+        chapter lands."
+  CTA: "Continue with Discord"
+  Secondary: "Free while in launch capacity. No credit card."
+  Footer: Privacy · Terms · Not affiliated with Discord or weebcentral.
+
+Do not add a giant hero illustration. Use a live mini-dashboard or a simple
+typographic sample card.
+
+Dashboard:
+
+  Header: "Your series" + "Add series" button
+  Capacity line: "3 of 5 series · 12 of 100 launch spots left"
+  Rows:
+    [status dot] Series title              Chapter 1199
+                 Latest chapter title      Destination: Main channel
+                 Next check ~12m            [pause] [remove]
+  Empty: "No series yet. Paste a weebcentral series link to start."
+  Add dialog:
+    "Add a series"
+    "Paste a weebcentral series link."
+    [URL input] [Check series]
+    Preview: title, latest chapter, destination selector, [Add series]
+  Error: inline under field; no alert().
+
+Destinations:
+
+  "Where alerts go"
+  Cards/rows: label, "Main channel · Guild", masked webhook configured,
+  role ID summary, status, [Send test] [Replace] [Remove].
+  Add dialog: label, webhook URL, optional role ID, helper text.
+  Never show the webhook URL after save.
+  Disabled banner: "Discord rejected this webhook. Replace it to resume."
+  In-use deletion: explain which series use it.
+
+Activity:
+
+  "Delivery log"
+  Table: time, series/chapter, destination, status, error.
+  Status chips with accessible text, not color alone.
+  Empty: "No deliveries yet. Test a destination to see one."
+  Load more / 50 rows.
+
+Settings:
+
+  Discord identity, joined date, capacity usage, privacy/terms links,
+  "Delete account" with a confirmation dialog requiring typing DELETE.
+  Explain what is deleted and what remains (shared series metadata).
+
+14.4 Microcopy
+
+- Use "series" (singular and plural) for manga titles.
+- "Destination" for a Discord webhook.
+- "Role ping" not "mention role".
+- "Next check" is approximate.
+- "At capacity" and "Join waitlist", not "sold out" or "upgrade".
+- "No chapter content is stored; alerts link to weebcentral."
+- Never say "unlimited."
+
+14.5 Accessibility
+
+- Keyboard: all dialogs, menus, forms usable without a mouse.
+- Visible focus states.
+- Labels tied to inputs; errors announced.
+- Dialogs trap focus and restore focus.
+- Color contrast AA.
+- Status not conveyed by color alone (text + icon).
+- `prefers-reduced-motion` respected; transitions 120–180ms max.
+- Mobile targets 44px minimum.
+- No autoplay video/audio.
+- Semantic headings and table markup.
+
+14.6 Empty/loading/error states
+
+- Skeleton rows for initial load, not a full-page spinner.
+- Inline errors; toasts for success/failure with `aria-live`.
+- Network failure: retry button, keep existing data if cached.
+- 401: redirect to login with return path.
+- 429: explain wait time.
+- Capacity: explicit waitlist page.
+- Do not show raw JSON/errors.
+
+14.7 Screenshots
+
+After building, use Playwright to capture:
+- desktop dashboard with seeded demo data;
+- mobile dashboard;
+- add-series dialog with a preview;
+- destinations page with a disabled webhook state;
+- landing page.
+Inspect the screenshots. Do not claim the UI is good without looking at them.
+Store them under `docs/screenshots/` only if they contain no secrets/test data
+that looks real. Use clearly fake demo series/webhook labels.
+
+--------------------------------------------------------------------------------
+15. TESTING PLAN
+--------------------------------------------------------------------------------
+
+15.1 Unit tests
+
+- Weebcentral URL parse: valid ID/slug, `/rss`, optional www, query, invalid
+  host, other path, credentials, port, fragment, SSRF attempts.
+- RSS parser: one item, item array, missing title/link, malformed XML, title
+  without "Chapter", decimal chapter, HTML entities.
+- Chapter compare: missing/new/same/older.
+- Chapter label normalization.
+- Role ID: blank, numeric, full mention, invalid, injection-ish strings.
+- Webhook validation: valid Discord hosts/paths, http, arbitrary host,
+  localhost, private IP, short path.
+- Encryption: round trip, random IV, tamper detection, wrong key fails,
+  ciphertext contains no plaintext.
+- Capacity: account/series/destination/global caps; race-like sequential
+  checks; existing series reuse.
+- Retry classification: 401/403/404 permanent, 429/5xx/network transient,
+  Retry-After parsing, max attempts.
+- Payload builder: no role -> no content/allowed_mentions; role -> exact
+  content and roles array; test marker.
+- Error sanitization: no URL/token in messages.
+
+15.2 Worker/D1 integration tests
+
+Use @cloudflare/vitest-pool-workers or Miniflare and a real local D1:
+
+- migrate schema;
+- create two users;
+- add destination for A; B cannot see/update/delete it;
+- add series/preview with mocked `fetch`;
+- subscription routes; cap enforcement;
+- feed poll creates chapter and deliveries once;
+- second poll does not duplicate;
+- failed destination retries; successful destination is not re-sent;
+- 404 disables destination; replacement re-enables;
+- 429/timeout schedules retry;
+- role payload only for configured destination;
+- test send writes no state;
+- activity is user-scoped;
+- account deletion cascades;
+- waitlist at account cap;
+- cron lock prevents overlap;
+- batch limits respected;
+- cleanup deletes old rows.
+
+Mock all outbound `fetch`. Never call real Discord or weebcentral in tests.
+Keep XML fixtures small and checked in.
+
+15.3 E2E tests
+
+Playwright:
+
+- landing/login redirect (mock OAuth or a dev-only test session; never a
+  production bypass);
+- dashboard empty state;
+- add series dialog validation + preview;
+- add destination validation;
+- send test shows success/failure;
+- pause/resume/remove series;
+- capacity/waitlist state;
+- mobile viewport.
+- Screenshots for design review.
+
+No test may use a real webhook. Use a local mock server or route interception
+where possible. If a Worker integration test needs an HTTP endpoint, add a
+test-only allowlist gated by `ENVIRONMENT === "test"`; prove it is not active
+in production.
+
+15.4 Commands
+
+  npm run lint
+  npm run typecheck
+  npm test
+  npm run test:worker
+  npm run test:e2e
+  npm run build
+  npx wrangler deploy --dry-run
+
+Preserve exit codes. Do not pipe failures through `tail` or `head`.
+
+15.5 Manual verification before claiming done
+
+- Fresh local D1 migration.
+- OAuth login with a real Discord app (if credentials available).
+- Add a real series link; preview shows correct title/chapter.
+- Add a real test webhook; test send arrives, role pings if configured.
+- Add a series and confirm the scheduler detects a chapter (use a fixture/local
+  scheduled run; don't spam Discord).
+- Verify no duplicate on a second run.
+- Verify a second user cannot see the first user's data.
+- Verify logged-out protected routes return 401.
+- Verify webhook URL is not in the DOM, API response, or bundle.
+- Verify mobile/desktop screenshots.
+- Verify build output has no secrets.
+
+--------------------------------------------------------------------------------
+16. DEPLOYMENT — CLOUDFLARE FREE
+--------------------------------------------------------------------------------
+
+16.1 Create resources
+
+  npx wrangler login
+  npx wrangler d1 create chapter-tracker-web
+
+Copy the database_id into `wrangler.jsonc` under `d1_databases`.
+
+16.2 Wrangler config
+
+Use the current official Cloudflare Vite/Workers config shape. Expected:
+
+  {
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "chapter-tracker-web",
+    "main": "src/worker/index.ts",
+    "compatibility_date": "YYYY-MM-DD",
+    "compatibility_flags": ["nodejs_compat"],
+    "assets": {
+      "directory": "./dist/client",
+      "not_found_handling": "single-page-application",
+      "run_worker_first": ["/api/*"]
+    },
+    "d1_databases": [
+      { "binding": "DB", "database_name": "chapter-tracker-web",
+        "database_id": "..." }
+    ],
+    "triggers": { "crons": ["*/5 * * * *"] },
+    "observability": { "enabled": true }
+  }
+
+Verify exact options against the installed Wrangler version. Do not guess.
+
+16.3 Local
+
+  npm install
+  cp .dev.vars.example .dev.vars
+  # fill local-only values:
+  # BETTER_AUTH_URL=http://localhost:8787
+  # APP_URL=http://localhost:8787
+  # DISCORD_CLIENT_ID=...
+  # DISCORD_CLIENT_SECRET=...
+  # BETTER_AUTH_SECRET=...
+  # WEBHOOK_ENCRYPTION_KEY=...
+  npm run db:migrate:local
+  npm run dev
+
+Local Discord redirect:
+
+  http://localhost:8787/api/auth/callback/discord
+
+Use a separate Discord app or separate redirect for dev if possible. Never
+reuse production secrets in `.dev.vars`.
+
+16.4 Production secrets
+
+  npx wrangler secret put BETTER_AUTH_SECRET
+  npx wrangler secret put DISCORD_CLIENT_SECRET
+  npx wrangler secret put WEBHOOK_ENCRYPTION_KEY
+
+Set public vars in `wrangler.jsonc`:
+
+  APP_URL=https://<worker>.<subdomain>.workers.dev
+  DISCORD_CLIENT_ID=...
+  MAX_ACCOUNTS=100
+  MAX_SERIES_PER_USER=5
+  MAX_DESTINATIONS_PER_USER=2
+  MAX_ACTIVE_SERIES=150
+  POLL_INTERVAL_MINUTES=30
+  CRON_BATCH_SERIES=20
+  CRON_BATCH_DELIVERIES=20
+  MAX_TEST_SENDS_PER_HOUR=5
+
+Generate secrets:
+
+  openssl rand -hex 32          # Better Auth secret
+  openssl rand -base64 32       # encryption key
+
+Do not print secrets in the final report. Do not paste them into chat.
+
+16.5 Migrations
+
+  npx wrangler d1 migrations apply chapter-tracker-web --local
+  npx wrangler d1 migrations apply chapter-tracker-web --remote
+
+Verify the remote schema before deploying. Do not run destructive migrations
+on a populated DB without a backup/approval.
+
+16.6 Deploy
+
+  npm run build
+  npx wrangler deploy
+
+Then:
+
+- open the workers.dev URL;
+- check `/api/health` and `/api/status`;
+- complete Discord login;
+- add a destination with a real test webhook;
+- send test;
+- add a series;
+- verify cron scheduled handler in local first; for production, wait for cron
+  or use a safe manual admin trigger if one exists;
+- watch `wrangler tail` for structured errors;
+- verify no webhook URL appears in logs.
+
+Custom domain is optional and not part of the free launch. Do not change DNS
+without explicit user approval.
+
+16.7 If Cloudflare is unavailable
+
+If `wrangler login`/account creation/credentials are unavailable, build and
+test locally, prepare the deployment guide, and report exactly what remains.
+Do not fake a deployed URL.
+
+16.8 Operational runbook
+
+README must include:
+
+- how to inspect D1 (`wrangler d1 execute ... --remote --command "..."`);
+- how to raise capacity after a load test;
+- how to rotate secrets;
+- how to disable a broken destination (UI);
+- how to check job_runs;
+- how to tail logs;
+- how to roll back a deployment (Wrangler versions/dashboard);
+- known free-tier limits.
+
+--------------------------------------------------------------------------------
+17. ACCEPTANCE CRITERIA
+--------------------------------------------------------------------------------
+
+The build is done only when all of these are true:
+
+[ ] New folder exists at /Users/rayhan/Desktop/Projects/Chapter Tracker Web.
+[ ] Existing folder /Users/rayhan/Desktop/Projects/Chapter Tracker is unchanged.
+[ ] New public GitHub repo `chapter-tracker-web` exists and is pushed.
+[ ] Repo has MIT license, README, PRIVACY.md, TERMS.md, CI.
+[ ] App builds with TypeScript strict; no `any` escape hatches in new code.
+[ ] Local D1 migration works from a fresh clone.
+[ ] Discord OAuth login works locally (or is documented as blocked by missing
+    credentials, with exact setup steps).
+[ ] User can add a weebcentral series link and see a preview.
+[ ] User can add multiple series (up to 5) and multiple destinations (up to 2).
+[ ] Optional role ID produces `<@&id>` + allowed_mentions; blank means no ping.
+[ ] Webhook URL is encrypted at rest and never returned to the browser.
+[ ] Test send works and does not change chapter state.
+[ ] Scheduler detects a new chapter, creates one delivery per destination, and
+    does not duplicate on a second run.
+[ ] Failed destination retries only itself; successful destination is not
+    re-notified.
+[ ] 401/403/404 disables the destination and surfaces it in the UI.
+[ ] Feed/parse errors do not advance state and are visible.
+[ ] Two users cannot read or modify each other's data.
+[ ] Account/series/destination/global caps are enforced; waitlist works at cap.
+[ ] No secrets in git, client bundle, DOM, logs, or screenshots.
+[ ] No arbitrary URL fetching; SSRF allowlists tested.
+[ ] UI matches the editorial design brief; desktop + mobile screenshots
+    reviewed.
+[ ] Accessibility basics: keyboard dialogs, labels, focus, contrast.
+[ ] Tests pass: unit, worker/D1, E2E, lint, typecheck, build, deploy dry-run.
+[ ] README explains free-tier capacity and the no-SLA limitation.
+[ ] No paid Cloudflare product is required.
+[ ] Final report includes repo URL, commit hash, deploy URL (only if verified),
+    commands run, test results, screenshots, known limitations, and manual
+    setup still required.
+
+--------------------------------------------------------------------------------
+18. DO NOT DO
+--------------------------------------------------------------------------------
+
+- Do not modify, commit to, or push to the existing onepiece-tracker repo.
+- Do not copy its production webhook URLs, role ID, state, or secrets.
+- Do not point the new site at the same webhook as the existing action.
+- Do not build a Discord bot in v1.
+- Do not add a second manga source in v1.
+- Do not scrape HTML pages; use the RSS feed.
+- Do not store chapter content or images.
+- Do not add payments, ads, analytics, or tracking.
+- Do not use a paid Cloudflare plan or paid add-on.
+- Do not use a service that sleeps/pauses (Render free, Supabase free pause).
+- Do not promise unlimited capacity.
+- Do not expose webhook URLs after save.
+- Do not log secrets or full webhook URLs.
+- Do not put secrets in localStorage, client JS, or VITE_* vars.
+- Do not use a generic proxy/fetch endpoint.
+- Do not trust client-supplied user/destination/series IDs.
+- Do not use `dangerouslySetInnerHTML`.
+- Do not disable TypeScript strict to finish.
+- Do not use default shadcn styling and call it designed.
+- Do not add fake testimonials, stats, logos, or screenshots.
+- Do not deploy production or change DNS without explicit user approval.
+- Do not claim a deploy or login test passed if it did not.
+
+--------------------------------------------------------------------------------
+19. BUILD SEQUENCE
+--------------------------------------------------------------------------------
+
+Phase 1 — Foundation
+- Read reference repo.
+- Scaffold Worker + React + Vite + TypeScript.
+- Add Wrangler config, local D1, migrations, env types.
+- Add CI, license, README skeleton.
+
+Phase 2 — Auth and schema
+- Better Auth + Discord provider.
+- D1 schema/migrations for app tables.
+- Session middleware, `/api/me`, protected route test.
+- Verify local login or document blocking credentials.
+
+Phase 3 — Series
+- URL parser, feed parser, preview.
+- Add/list/pause/remove subscription.
+- Shared series upsert, no backfill, caps.
+- Tests.
+
+Phase 4 — Destinations
+- Validation, GET verification, encryption, role ID.
+- Add/list/replace/delete/test.
+- Masked UI, disabled state.
+- Tests.
+
+Phase 5 — Scheduler
+- Cron handler, lock, due selection, feed poll, fanout, delivery retries,
+  quarantine, cleanup, job_runs.
+- Local scheduled-handler test with mocked fetch.
+- Capacity/backlog behavior.
+
+Phase 6 — UI
+- Implement the design tokens/layout/pages.
+- Loading/empty/error/waitlist states.
+- Responsive and accessibility pass.
+- Playwright screenshots and review.
+
+Phase 7 — Polish and launch
+- README/PRIVACY/TERMS.
+- CI green.
+- Load test 100 users/150 series/20 batch.
+- Deploy to Cloudflare if credentials available; verify login, test send, cron.
+- Create/push GitHub repo.
+- Final report.
+
+Do not skip phases. After each phase, run its checks. If a phase is blocked,
+report the blocker and continue with everything that does not depend on it.
+
+--------------------------------------------------------------------------------
+20. FINAL REPORT FORMAT
+--------------------------------------------------------------------------------
+
+When you are done, return a concise but complete report:
+
+1. Repo URL and commit hash.
+2. Deployed URL, only if actually verified; otherwise "not deployed" + exact
+   setup steps remaining.
+3. What was built.
+4. Commands run and their real results.
+5. Tests: counts, pass/fail, anything not run.
+6. Screenshots and where they are.
+7. Capacity defaults and how to change them.
+8. Secrets/env vars the user must set (names only, never values).
+9. Known limitations: free-tier quotas, no SLA, no Discord bot, weebcentral
+   only, no email login, no backfill.
+10. Confirmation that the existing Chapter Tracker repo was not modified.
+
+Be honest. A clean "not deployed because Cloudflare credentials are missing"
+is better than a fake success.
+
+--------------------------------------------------------------------------------
+21. QUICK REFERENCE / APPENDIX
+--------------------------------------------------------------------------------
+
+Reference repo:
+  https://github.com/raYhanryd/onepiece-tracker
+  /Users/rayhan/Desktop/Projects/Chapter Tracker
+
+New repo:
+  https://github.com/<authenticated-account>/chapter-tracker-web
+
+New folder:
+  /Users/rayhan/Desktop/Projects/Chapter Tracker Web
+
+Current project's key files:
+  scripts/check_chapter.py
+  tests/test_check_chapter.py
+  state/last_chapter.json
+  .github/workflows/check-chapter.yml
+  README.md
+  docs/SHOWCASE.md
+
+Current project's behavior:
+  - 5 checks/day via GitHub Actions cron.
+  - One Piece only.
+  - Python stdlib.
+  - RSS at weebcentral.
+  - Discord embed.
+  - Two optional webhooks.
+  - Role ping only on webhook 2 via DISCORD_ROLE_ID_2.
+  - Per-webhook delivered_to ledger.
+  - Transient retries, permanent quarantine.
+  - 43 offline tests.
+  - State committed to git.
+  - Missing expected role ping fails loudly.
+  - Public MIT repo, template enabled.
+
+Website differences:
+  - Multi-user, multi-series.
+  - Discord OAuth.
+  - Webhook URLs encrypted in D1.
+  - Per-series global state.
+  - Subscription + destination model.
+  - Optional role ID (blank = no ping).
+  - Free capacity caps + waitlist.
+  - Cloudflare Workers/D1/Cron, no GitHub for users.
+  - No backfill.
+  - No Discord bot.
+  - No chapter content.
+
+Cloudflare docs to consult:
+  https://developers.cloudflare.com/workers/
+  https://developers.cloudflare.com/workers/configuration/cron-triggers/
+  https://developers.cloudflare.com/workers/static-assets/
+  https://developers.cloudflare.com/workers/platform/limits/
+  https://developers.cloudflare.com/workers/platform/pricing/
+  https://developers.cloudflare.com/d1/
+  https://developers.cloudflare.com/workers/runtime-apis/web-crypto/
+  https://developers.cloudflare.com/workers/configuration/secrets/
+
+Better Auth docs:
+  https://better-auth.com/docs/authentication/discord
+  https://better-auth.com/docs/guides/cloudflare
+
+Drizzle/D1:
+  https://orm.drizzle.team/docs/get-started/d1
+
+Discord webhooks:
+  https://discord.com/developers/docs/resources/webhook
+
+Discord OAuth2:
+  https://discord.com/developers/docs/topics/oauth2
+
+Weebcentral series feed pattern:
+  https://weebcentral.com/series/<id>/rss
+
+Final reminder:
+
+The user wants a clean, free, capacity-limited product that does not touch their
+working GitHub Action. Build the new thing well, keep the old thing untouched,
+and do not pretend the free tier is unlimited.
+
+END OF PROMPT
+================================================================================

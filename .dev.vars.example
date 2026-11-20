@@ -1,0 +1,24 @@
+# Copy to .dev.vars and fill in local-only values. Never commit .dev.vars.
+# Local origin. The Vite dev server is pinned to port 8787.
+APP_URL=http://localhost:8787
+ENVIRONMENT=development
+
+# Discord OAuth application (Developer Portal -> OAuth2).
+# Redirect: http://localhost:8787/api/auth/callback/discord
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+
+# openssl rand -hex 32
+BETTER_AUTH_SECRET=
+# openssl rand -base64 32
+WEBHOOK_ENCRYPTION_KEY=
+
+# Capacity defaults. Omit any line to use the built-in default.
+MAX_ACCOUNTS=100
+MAX_SERIES_PER_USER=5
+MAX_DESTINATIONS_PER_USER=2
+MAX_ACTIVE_SERIES=150
+POLL_INTERVAL_MINUTES=30
+CRON_BATCH_SERIES=20
+CRON_BATCH_DELIVERIES=20
+MAX_TEST_SENDS_PER_HOUR=5
