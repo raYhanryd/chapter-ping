@@ -8,7 +8,7 @@ Free while launch capacity lasts. No card, no ads, no paid tier. Free-domain opt
 
 ## Status
 
-Milestone 5 (editorial UI) is built and reviewed. Milestone 6 (launch) is live at <https://chapter-tracker-web.chapterping.workers.dev>; production D1 is migrated and the cron has run successfully. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. The remaining live checks are Discord sign-in (after adding the production callback) and a real webhook test send.
+Milestone 6 (launch) is live at <https://chapterping.vercel.app>, a Vercel rewrite in front of the Worker at <https://chapter-tracker-web.chapterping.workers.dev>; production D1 is migrated and the cron has run successfully. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. The remaining live checks are a real Discord sign-in through the new origin and a real webhook test send.
 
 The live Worker and D1 database keep their original internal names (`chapter-tracker-web`) so the current URL, data, and Discord callback stay stable. Chapter Ping is the product name; renaming those resources is a separate deploy-time cutover.
 
@@ -67,7 +67,7 @@ Health: `curl http://localhost:8787/api/health`.
 ### Discord OAuth application
 
 1. Discord Developer Portal -> Applications -> New Application.
-2. OAuth2 -> add redirects: `http://localhost:8787/api/auth/callback/discord` and, later, `https://<worker>.workers.dev/api/auth/callback/discord`.
+2. OAuth2 -> add redirects: `http://localhost:8787/api/auth/callback/discord` and `https://chapterping.vercel.app/api/auth/callback/discord`. The Worker's own callback stays registered and keeps working.
 3. Copy the client id and secret into `.dev.vars`. Never commit them.
 
 No bot token, no bot permissions, no privileged intents.

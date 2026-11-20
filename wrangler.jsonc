@@ -26,6 +26,9 @@
   "vars": {
     // Product name is Chapter Ping; this URL changes only at a controlled cutover.
     "APP_URL": "https://chapter-tracker-web.chapterping.workers.dev",
+    // The origin browsers actually use. Drives the auth baseURL, so Discord's
+    // redirect_uri points at the proxy. Unset means "use APP_URL".
+    "PUBLIC_URL": "https://chapterping.vercel.app",
     "ENVIRONMENT": "production",
     "MAX_ACCOUNTS": "100",
     "MAX_SERIES_PER_USER": "5",
