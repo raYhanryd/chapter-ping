@@ -8,8 +8,9 @@ async function scalar(db: D1Database, sql: string, ...values: unknown[]): Promis
   return row?.count ?? 0;
 }
 
+// Spec 3.6: an active account is a user with at least one active subscription.
 export function accountCount(db: D1Database): Promise<number> {
-  return scalar(db, "SELECT COUNT(*) AS count FROM user");
+  return scalar(db, "SELECT COUNT(DISTINCT user_id) AS count FROM subscriptions WHERE active = 1");
 }
 
 export function userSeriesCount(db: D1Database, userId: string): Promise<number> {

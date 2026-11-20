@@ -219,6 +219,13 @@ describe("series list, pause and remove", () => {
       await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions WHERE id = ? AND active = 0", subscriptionId),
     ).toBe(1);
 
+    const resumed = await appFor(first.user).request(`/api/series/${subscriptionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: true }),
+    });
+    expect(resumed.status).toBe(200);
+    expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM series WHERE active = 1")).toBe(1);
+
     const removed = await appFor(first.user).request(`/api/series/${subscriptionId}`, { method: "DELETE" });
     expect(removed.status).toBe(204);
     expect(await count(testDb.db, "SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = ?", first.user.id)).toBe(0);

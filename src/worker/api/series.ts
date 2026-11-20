@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppEnv } from "../lib/session";
+import type { AppContext, AppEnv } from "../lib/session";
 import { requireUser } from "../lib/session";
 import { ApiError } from "../lib/errors";
 import { assertSameOrigin } from "../lib/same-origin";
@@ -32,6 +32,17 @@ interface SubscriptionRow {
 
 const PREVIEW_LIMIT = 10;
 const PREVIEW_WINDOW_SECONDS = 60;
+const WRITE_LIMIT = 30;
+const WRITE_WINDOW_SECONDS = 60;
+
+async function writeLimit(c: AppContext): Promise<void> {
+  const user = requireUser(c);
+  const limit = await checkRateLimit(c.env.DB, `series-write:${user.id}`, WRITE_LIMIT, WRITE_WINDOW_SECONDS);
+  if (!limit.allowed) {
+    c.header("Retry-After", String(limit.retryAfter));
+    throw new ApiError("RATE_LIMITED", "Too many changes. Wait a moment and try again.", 429);
+  }
+}
 
 function addMinutes(date: Date, minutes: number): string {
   return new Date(date.getTime() + minutes * 60_000).toISOString();
@@ -137,6 +148,7 @@ seriesRoutes.post("/series/preview", async (c) => {
 
 seriesRoutes.post("/series", async (c) => {
   assertSameOrigin(c);
+  await writeLimit(c);
   const user = requireUser(c);
   noStore(c);
 
@@ -249,6 +261,7 @@ seriesRoutes.post("/series", async (c) => {
 
 seriesRoutes.patch("/series/:id", async (c) => {
   assertSameOrigin(c);
+  await writeLimit(c);
   const user = requireUser(c);
   noStore(c);
 
@@ -258,14 +271,26 @@ seriesRoutes.patch("/series/:id", async (c) => {
     throw new ApiError("VALIDATION_ERROR", "Send active true or false.", 400, "active");
   }
 
-  const result = await c.env.DB.prepare(
-    "UPDATE subscriptions SET active = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-  )
-    .bind(active ? 1 : 0, new Date().toISOString(), c.req.param("id"), user.id)
-    .run();
+  const existing = await c.env.DB.prepare("SELECT series_id FROM subscriptions WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), user.id)
+    .first<{ series_id: string }>();
+  if (!existing) throw new ApiError("NOT_FOUND", "That series was not found.", 404);
 
-  if (!result.meta.changes) throw new ApiError("NOT_FOUND", "That series was not found.", 404);
-  return c.json({ ok: true, active });
+  const nowIso = new Date().toISOString();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE subscriptions SET active = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(
+      active ? 1 : 0,
+      nowIso,
+      c.req.param("id"),
+      user.id,
+    ),
+    // A paused series may have been deactivated when its last subscriber left.
+    ...(active
+      ? [c.env.DB.prepare("UPDATE series SET active = 1, updated_at = ? WHERE id = ?").bind(nowIso, existing.series_id)]
+      : []),
+  ]);
+
+  return c.json({ subscription: { id: c.req.param("id"), active } });
 });
 
 seriesRoutes.delete("/series/:id", async (c) => {

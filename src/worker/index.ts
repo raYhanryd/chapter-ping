@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { AuthConfigError, createAuth } from "./auth";
 import { accountRoutes } from "./api/account";
 import { meRoutes } from "./api/me";
+import { destinationRoutes } from "./api/destinations";
 import { seriesRoutes } from "./api/series";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { readConfig } from "./lib/env";
@@ -43,7 +44,9 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/status", async (c) => {
     const config = readConfig(c.env);
     try {
-      const accounts = await c.env.DB.prepare("SELECT COUNT(*) AS count FROM user").first<{ count: number }>();
+      const accounts = await c.env.DB.prepare(
+        "SELECT COUNT(DISTINCT user_id) AS count FROM subscriptions WHERE active = 1",
+      ).first<{ count: number }>();
       const activeSeries = await c.env.DB.prepare(
         "SELECT COUNT(*) AS count FROM series WHERE active = 1",
       ).first<{ count: number }>();
@@ -89,6 +92,7 @@ export function createApp(options: AppOptions = {}) {
   app.route("/api", meRoutes);
   app.route("/api", accountRoutes);
   app.route("/api", seriesRoutes);
+  app.route("/api", destinationRoutes);
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
