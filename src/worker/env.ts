@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  /** Static assets binding; the Worker defers every non-API request to it. */
+  ASSETS: Fetcher;
   APP_URL: string;
   /** Canonical public origin when the app is served through a proxy. Defaults to APP_URL. */
   PUBLIC_URL?: string;

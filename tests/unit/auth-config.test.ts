@@ -4,6 +4,7 @@ import type { Env } from "../../src/worker/env";
 
 const base = {
   DB: {} as D1Database,
+  ASSETS: {} as Env["ASSETS"],
   APP_URL: "http://localhost:8787",
   BETTER_AUTH_SECRET: "test-secret-value",
   DISCORD_CLIENT_ID: "123456789012345678",

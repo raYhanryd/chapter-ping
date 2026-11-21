@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { Env } from "../env";
 
-const CONTENT_SECURITY_POLICY = [
+export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "img-src 'self' https://cdn.discordapp.com https://temp.compsci88.com data:",
   "style-src 'self' 'unsafe-inline'",

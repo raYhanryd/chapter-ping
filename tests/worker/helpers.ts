@@ -84,7 +84,12 @@ export async function createTestDb(): Promise<TestDb> {
   }
 
   const db = new SqliteD1(sqlite) as unknown as D1Database;
-  const env: Env = { DB: db, APP_URL: "http://localhost:8787", ENVIRONMENT: "development" };
+  const env: Env = {
+    DB: db,
+    ASSETS: { fetch: async () => new Response("", { status: 404 }) } as unknown as Env["ASSETS"],
+    APP_URL: "http://localhost:8787",
+    ENVIRONMENT: "development",
+  };
 
   return {
     db,

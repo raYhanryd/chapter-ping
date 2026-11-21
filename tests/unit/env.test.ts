@@ -3,7 +3,11 @@ import { DEFAULT_LIMITS } from "../../src/shared/constants";
 import type { Env } from "../../src/worker/env";
 import { readConfig } from "../../src/worker/lib/env";
 
-const base = { DB: {} as D1Database, APP_URL: "http://localhost:8787" } satisfies Env;
+const base = {
+  DB: {} as D1Database,
+  ASSETS: {} as Env["ASSETS"],
+  APP_URL: "http://localhost:8787",
+} satisfies Env;
 
 describe("readConfig", () => {
   it("uses the brief's defaults when values are absent", () => {

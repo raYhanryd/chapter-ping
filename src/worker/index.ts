@@ -115,6 +115,11 @@ export function createApp(options: AppOptions = {}) {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
   });
 
+  // Documents are routed here by assets.run_worker_first so the canonical check
+  // above can run. Hand them back to the assets layer, which applies the SPA
+  // fallback and public/_headers.
+  app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+
   app.onError((error, c) => {
     if (error instanceof ApiError) {
       return c.json(toErrorBody(error), error.status as ContentfulStatusCode);

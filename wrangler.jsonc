@@ -8,7 +8,10 @@
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "binding": "ASSETS",
+    // Documents must reach the Worker or the workers.dev redirect never runs;
+    // hashed assets stay on the assets layer so they cost no Worker invocation.
+    "run_worker_first": ["/*", "!/assets/*", "!/fonts/*", "!/favicon.svg"]
   },
   "d1_databases": [
     {
