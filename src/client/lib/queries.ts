@@ -17,6 +17,14 @@ export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: api.status, retry: false });
 }
 
+export function usePublicSeries(id: string) {
+  return useQuery({
+    queryKey: ["public-series", id],
+    queryFn: () => api.publicSeries(id),
+    retry: false,
+  });
+}
+
 export function useSeries() {
   return useQuery({ queryKey: queryKeys.series, queryFn: api.series });
 }

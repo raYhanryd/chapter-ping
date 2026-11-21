@@ -7,6 +7,7 @@ import { Destinations } from "./pages/Destinations";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
+import { PublicSeries } from "./pages/PublicSeries";
 import { SeriesDetail } from "./pages/SeriesDetail";
 import { Settings } from "./pages/Settings";
 import { Waitlist } from "./pages/Waitlist";
@@ -18,6 +19,7 @@ export function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/waitlist" element={<Waitlist />} />
+        <Route path="/s/:id" element={<PublicSeries />} />
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/series/:id" element={<SeriesDetail />} />

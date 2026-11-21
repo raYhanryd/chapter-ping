@@ -7,6 +7,7 @@ export interface DiscordEmbed {
   color: number;
   timestamp: string;
   footer: { text: string };
+  thumbnail?: { url: string };
 }
 
 export interface DiscordWebhookBody {
@@ -25,6 +26,7 @@ export interface ChapterPayloadInput {
   chapterLabel: string;
   chapterUrl: string;
   roleId: string | null;
+  coverUrl?: string | null;
   now: Date;
 }
 
@@ -33,6 +35,7 @@ export function buildChapterPayload({
   chapterLabel,
   chapterUrl,
   roleId,
+  coverUrl,
   now,
 }: ChapterPayloadInput): DiscordWebhookBody {
   return {
@@ -45,6 +48,7 @@ export function buildChapterPayload({
         color: EMBED_COLOR,
         timestamp: now.toISOString(),
         footer: { text: "Chapter Ping" },
+        ...(coverUrl ? { thumbnail: { url: coverUrl } } : {}),
       },
     ],
   };

@@ -33,6 +33,15 @@ export function SeriesDetail() {
     onError: (cause) => toast(messageFor(cause, "Could not change that series.")),
   });
 
+  async function copyLink(seriesId: string) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/s/${seriesId}`);
+      toast("Link copied.");
+    } catch {
+      toast("Could not copy the link.");
+    }
+  }
+
   async function remove() {
     await api.removeSeries(id);
     queryClient.invalidateQueries({ queryKey: queryKeys.series });
@@ -82,6 +91,9 @@ export function SeriesDetail() {
           <a className="btn btn-secondary" href={item.siteUrl} target="_blank" rel="noreferrer">
             Open on weebcentral
           </a>
+          <button type="button" className="btn btn-secondary" onClick={() => void copyLink(item.seriesId)}>
+            Copy link
+          </button>
           <button
             type="button"
             className="btn btn-secondary"

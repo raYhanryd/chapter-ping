@@ -7,15 +7,57 @@ import { activityRoutes } from "./api/activity";
 import { meRoutes } from "./api/me";
 import { destinationRoutes } from "./api/destinations";
 import { seriesRoutes } from "./api/series";
+import { publicRoutes } from "./api/public";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { runScheduled } from "./jobs";
 import { readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
 import { canonicalRedirect } from "./lib/canonical";
 import { injectSocialMeta, seriesSocialMeta, type SeriesMetaRow } from "./lib/social";
-import { resolveSessionUser, type AppEnv, type SessionUser } from "./lib/session";
+import { resolveSessionUser, type AppContext, type AppEnv, type SessionUser } from "./lib/session";
 
 export type { AppEnv };
+
+type SeriesLookup = (db: D1Database, id: string) => Promise<SeriesMetaRow | null>;
+
+const bySubscription: SeriesLookup = (db, id) =>
+  db
+    .prepare(
+      `SELECT se.title, se.external_id, se.latest_chapter_label, se.latest_chapter_title
+       FROM subscriptions s
+       JOIN series se ON se.id = s.series_id
+       WHERE s.id = ?`,
+    )
+    .bind(id)
+    .first<SeriesMetaRow>();
+
+const bySeries: SeriesLookup = (db, id) =>
+  db
+    .prepare(
+      `SELECT title, external_id, latest_chapter_label, latest_chapter_title
+       FROM series WHERE id = ?`,
+    )
+    .bind(id)
+    .first<SeriesMetaRow>();
+
+async function serveSeriesDocument(c: AppContext, lookup: SeriesLookup): Promise<Response> {
+  const shell = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url)).then((res) =>
+    res.text(),
+  );
+
+  try {
+    const row = await lookup(c.env.DB, c.req.param("id") ?? "");
+    if (!row) return c.html(shell);
+
+    const origin = c.env.PUBLIC_URL?.trim() || c.env.APP_URL;
+    // Same policy as the rest of the shell: revalidate, so a new chapter or a
+    // deploy shows up in the unfurl immediately instead of up to 5 minutes later.
+    c.header("Cache-Control", "public, max-age=0, must-revalidate");
+    return c.html(injectSocialMeta(shell, seriesSocialMeta(row, origin, c.req.path)));
+  } catch {
+    return c.html(shell);
+  }
+}
 
 export interface AppOptions {
   /** Test seam: replace the session resolver. Production uses the Better Auth session. */
@@ -41,7 +83,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.use("/api/*", async (c, next) => {
-    if (c.req.path.startsWith("/api/auth/")) {
+    if (c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/public/")) {
       await next();
       return;
     }
@@ -111,39 +153,17 @@ export function createApp(options: AppOptions = {}) {
   app.route("/api", seriesRoutes);
   app.route("/api", destinationRoutes);
   app.route("/api", activityRoutes);
+  app.route("/api", publicRoutes);
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
   });
 
-  // A shared series page unfurls with its own cover and latest chapter instead
-  // of the generic card. The shell is the same document; only the marked social
-  // block changes, so anything that goes wrong here still renders the app.
-  app.get("/series/:id", async (c) => {
-    const shell = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url)).then((res) =>
-      res.text(),
-    );
-
-    try {
-      const row = await c.env.DB.prepare(
-        `SELECT se.title, se.external_id, se.latest_chapter_label, se.latest_chapter_title
-         FROM subscriptions s
-         JOIN series se ON se.id = s.series_id
-         WHERE s.id = ?`,
-      )
-        .bind(c.req.param("id"))
-        .first<SeriesMetaRow>();
-      if (!row) return c.html(shell);
-
-      const origin = c.env.PUBLIC_URL?.trim() || c.env.APP_URL;
-      // Same policy as the rest of the shell: revalidate, so a new chapter or a
-      // deploy shows up in the unfurl immediately instead of up to 5 minutes later.
-      c.header("Cache-Control", "public, max-age=0, must-revalidate");
-      return c.html(injectSocialMeta(shell, seriesSocialMeta(row, origin, c.req.path)));
-    } catch {
-      return c.html(shell);
-    }
-  });
+  // Shared links unfurl with their own cover and latest chapter instead of the
+  // generic card. The shell is the same document; only the marked social block
+  // changes, so anything that goes wrong here still renders the app.
+  app.get("/series/:id", (c) => serveSeriesDocument(c, bySubscription));
+  app.get("/s/:id", (c) => serveSeriesDocument(c, bySeries));
 
   // Documents are routed here by assets.run_worker_first so the canonical check
   // above can run. Hand them back to the assets layer, which applies the SPA

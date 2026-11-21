@@ -18,7 +18,14 @@ const SERIES_ID = "series-1";
 const SUBSCRIPTION_ID = "sub-1";
 
 /** A tracked series, with the destination its subscription needs to exist. */
-async function seedSeries() {
+let seeded: Promise<void> | null = null;
+
+function seedSeries(): Promise<void> {
+  seeded ??= insertSeries();
+  return seeded;
+}
+
+async function insertSeries(): Promise<void> {
   const now = new Date().toISOString();
   const externalId = "01J76XY7E9FNDZ1DBBM6PBJPFK";
 
@@ -124,6 +131,24 @@ describe("document routing", () => {
     expect(html).not.toContain("social-card.png");
   });
 
+  it("unfurls the public series link by series id", async () => {
+    await seedSeries();
+
+    const res = await app().request(
+      `${WORKER}/s/${SERIES_ID}`,
+      { headers: { "x-forwarded-host": "chapterping.vercel.app" } },
+      env(),
+    );
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain("<title>One Piece — Chapter Ping</title>");
+    expect(html).toContain(
+      'content="https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"',
+    );
+    expect(html).toContain(`content="${PROXY}/s/${SERIES_ID}"`);
+  });
+
   it("keeps the generic card when the series cannot be resolved", async () => {
     const res = await app().request(
       `${WORKER}/series/not-a-series`,
@@ -135,6 +160,18 @@ describe("document routing", () => {
     expect(res.status).toBe(200);
     expect(html).toContain("<title>Chapter Ping</title>");
     expect(html).not.toContain("temp.compsci88.com");
+  });
+
+  it("keeps the generic card for an unknown public series link", async () => {
+    const res = await app().request(
+      `${WORKER}/s/not-a-series`,
+      { headers: { "x-forwarded-host": "chapterping.vercel.app" } },
+      env(),
+    );
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain("<title>Chapter Ping</title>");
   });
 
   it("renders the static asset headers from the Worker's own definitions", () => {

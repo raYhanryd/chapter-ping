@@ -5,6 +5,7 @@ import { ApiError, sanitizeMessage } from "../lib/errors";
 import { decryptSecret } from "../lib/crypto";
 import { sendWebhook } from "../lib/discord";
 import { buildChapterPayload } from "../lib/payload";
+import { seriesCoverUrl } from "../lib/weebcentral";
 
 const BACKOFF_MINUTES = [1, 5, 15, 60, 180];
 const MAX_RETRY_AFTER_MINUTES = 60;
@@ -29,6 +30,7 @@ interface DueDelivery {
   chapter_label: string;
   chapter_url: string;
   series_title: string;
+  series_external_id: string;
   subscription_active: number | null;
 }
 
@@ -60,6 +62,7 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
             dst.id AS destination_id, dst.status AS destination_status,
             dst.webhook_ciphertext, dst.webhook_iv, dst.role_id,
             ch.chapter_label, ch.url AS chapter_url, se.title AS series_title,
+            se.external_id AS series_external_id,
             sb.active AS subscription_active
      FROM deliveries d
      JOIN chapters ch ON ch.id = d.chapter_id
@@ -108,6 +111,7 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
       chapterLabel: delivery.chapter_label,
       chapterUrl: delivery.chapter_url,
       roleId: delivery.role_id,
+      coverUrl: seriesCoverUrl(delivery.series_external_id),
       now,
     });
 

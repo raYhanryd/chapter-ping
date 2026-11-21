@@ -33,6 +33,25 @@ describe("buildChapterPayload", () => {
     expect(embed.footer.text).toBe("Chapter Ping");
   });
 
+  it("shows the series cover as the embed thumbnail", () => {
+    const payload = buildChapterPayload({
+      ...chapter,
+      roleId: null,
+      coverUrl: "https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg",
+      now,
+    });
+
+    expect(payload.embeds[0]!.thumbnail).toEqual({
+      url: "https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg",
+    });
+  });
+
+  it("omits the thumbnail when the series has no cover", () => {
+    const payload = buildChapterPayload({ ...chapter, roleId: null, coverUrl: null, now });
+
+    expect(payload.embeds[0]!.thumbnail).toBeUndefined();
+  });
+
   it("marks test sends and keeps them out of chapter state", () => {
     const payload = buildTestPayload({ roleId: null, now });
     const embed = payload.embeds[0]!;

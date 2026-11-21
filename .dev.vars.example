@@ -16,6 +16,11 @@ BETTER_AUTH_SECRET=
 # openssl rand -base64 32
 WEBHOOK_ENCRYPTION_KEY=
 
+# Discord webhook the operator is paged on when a cron run fails or stalls.
+# Optional: unset means no alerts. In production set it with
+#   wrangler secret put ALERT_WEBHOOK_URL
+# ALERT_WEBHOOK_URL=
+
 # Capacity defaults. Omit any line to use the built-in default.
 MAX_ACCOUNTS=100
 MAX_SERIES_PER_USER=5

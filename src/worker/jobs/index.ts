@@ -5,9 +5,22 @@ import { deliverDue } from "./deliver";
 import { acquireLock, releaseLock } from "./lock";
 import { pollDueSeries } from "./poll";
 import { finishRun, startRun } from "./runs";
+import { alertOperator } from "../lib/operator-alert";
 
 const LOCK_NAME = "cron";
 const LEASE_MINUTES = 4;
+// Nine missed five-minute cycles. Long enough that a deploy does not page anyone.
+const STALE_RUN_MINUTES = 45;
+
+async function lastSuccessAgeMinutes(db: D1Database, now: Date): Promise<number | null> {
+  const row = await db
+    .prepare("SELECT finished_at FROM job_runs WHERE status = 'ok' ORDER BY finished_at DESC LIMIT 1")
+    .first<{ finished_at: string }>();
+  if (!row?.finished_at) return null;
+  const finished = new Date(row.finished_at).getTime();
+  if (!Number.isFinite(finished)) return null;
+  return (now.getTime() - finished) / 60_000;
+}
 
 export interface JobRunSummary {
   locked: boolean;
@@ -51,6 +64,11 @@ export async function runScheduled(
   let errors = 0;
 
   try {
+    const staleFor = await lastSuccessAgeMinutes(env.DB, now);
+    if (staleFor !== null && staleFor > STALE_RUN_MINUTES) {
+      await alertOperator(env, `no successful run for ${Math.round(staleFor)} minutes`, { now });
+    }
+
     runId = await startRun(env.DB, now);
 
     const poll = await pollDueSeries(env, now, fetchImpl);
@@ -90,6 +108,14 @@ export async function runScheduled(
 
     return summary;
   } catch (error) {
+    await alertOperator(
+      env,
+      `scheduled run failed: ${
+        error instanceof Error ? sanitizeMessage(error.message) : "unknown error"
+      }`,
+      { now },
+    );
+
     if (runId) {
       try {
         await finishRun(env.DB, runId, {

@@ -20,6 +20,21 @@ export interface GlobalStatus {
   activeSeriesMax: number;
 }
 
+export interface PublicSeriesResponse {
+  series: {
+    id: string;
+    title: string;
+    coverUrl: string;
+    siteUrl: string;
+    latestChapter: {
+      label: string;
+      title: string | null;
+      url: string | null;
+      publishedAt: string | null;
+    } | null;
+  };
+}
+
 export interface LatestChapter {
   label: string;
   title: string | null;
@@ -164,6 +179,9 @@ export const api = {
   me: () => request<MeResponse>("/api/me"),
 
   status: () => request<GlobalStatus>("/api/status"),
+
+  publicSeries: (id: string) =>
+    request<PublicSeriesResponse>(`/api/public/series/${encodeURIComponent(id)}`),
 
   series: () => request<{ items: SeriesItem[] }>("/api/series"),
 
