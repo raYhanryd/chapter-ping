@@ -1,13 +1,14 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { AppEnv } from "../lib/session";
 import { ApiError } from "../lib/errors";
 import { checkRateLimit } from "../lib/rate-limit";
 import { coverPath } from "../lib/weebcentral";
-import { clientAddress } from "../lib/client-ip";
+import { clientAddress, edgeAddress } from "../lib/client-ip";
 import { publicOrigin } from "../lib/env";
 
-const LOOKUP_LIMIT = 60;
-const LOOKUP_WINDOW_SECONDS = 60;
+const VISITOR_LIMIT = 60;
+const SOURCE_LIMIT = 300;
+const WINDOW_SECONDS = 60;
 
 interface PublicSeriesRow {
   id: string;
@@ -22,14 +23,31 @@ interface PublicSeriesRow {
 
 export const publicRoutes = new Hono<AppEnv>();
 
+function rateLimited(c: Context<AppEnv>, retryAfter: number): never {
+  c.header("Retry-After", String(retryAfter));
+  throw new ApiError("RATE_LIMITED", "Too many requests. Wait a moment and try again.", 429);
+}
+
 /** Read-only series data for the shareable page. No session required. */
 publicRoutes.get("/public/series/:id", async (c) => {
-  const ip = clientAddress(c.req.raw.headers);
-  const limit = await checkRateLimit(c.env.DB, `public-series:${ip}`, LOOKUP_LIMIT, LOOKUP_WINDOW_SECONDS);
-  if (!limit.allowed) {
-    c.header("Retry-After", String(limit.retryAfter));
-    throw new ApiError("RATE_LIMITED", "Too many requests. Wait a moment and try again.", 429);
-  }
+  const headers = c.req.raw.headers;
+  const visitor = await checkRateLimit(
+    c.env.DB,
+    `public-series:${clientAddress(headers, c.env.PUBLIC_URL)}`,
+    VISITOR_LIMIT,
+    WINDOW_SECONDS,
+  );
+  if (!visitor.allowed) rateLimited(c, visitor.retryAfter);
+
+  // A forged forwarded chain can mint visitor buckets, so cap the address
+  // Cloudflare actually saw as well.
+  const source = await checkRateLimit(
+    c.env.DB,
+    `public-series-src:${edgeAddress(headers)}`,
+    SOURCE_LIMIT,
+    WINDOW_SECONDS,
+  );
+  if (!source.allowed) rateLimited(c, source.retryAfter);
 
   const row = await c.env.DB.prepare(
     `SELECT id, external_id, title, site_url, latest_chapter_label, latest_chapter_title,

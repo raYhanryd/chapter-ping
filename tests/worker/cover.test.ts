@@ -1,11 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/worker";
-import type { Env } from "../../src/worker/env";
+import { createTestDb, type TestDb } from "./helpers";
 
 const ORIGIN = "http://localhost:8787";
 const EXTERNAL_ID = "01J76XY7E9FNDZ1DBBM6PBJPFK";
 
-const env = { DB: {} as D1Database, APP_URL: ORIGIN } as Env;
+let testDb: TestDb;
+
+beforeAll(async () => {
+  testDb = await createTestDb();
+  testDb.env.PUBLIC_URL = ORIGIN;
+}, 30_000);
+
+afterAll(async () => {
+  await testDb.dispose();
+});
+
+beforeEach(async () => {
+  await testDb.db.prepare("DELETE FROM rate_limits").run();
+});
 
 function app() {
   return createApp({ resolveUser: async () => null });
@@ -26,7 +39,7 @@ describe("cover proxy", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, env);
+    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, testDb.env);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/jpeg");
@@ -38,11 +51,32 @@ describe("cover proxy", () => {
     );
   });
 
+  it("stops fetching for one visitor after the cover budget", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(new Uint8Array([1]), { status: 200, headers: { "content-type": "image/jpeg" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const application = app();
+    const headers = { "x-forwarded-host": "localhost:8787", "x-forwarded-for": "203.0.113.7" };
+
+    for (let i = 0; i < 60; i += 1) {
+      const res = await application.request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg?n=${i}`, { headers }, testDb.env);
+      expect(res.status).toBe(200);
+    }
+
+    const limited = await application.request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg?n=61`, { headers }, testDb.env);
+
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(60);
+  });
+
   it("refuses an id that is not a series id", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await app().request(`${ORIGIN}/cover/short.jpg`, {}, env);
+    const res = await app().request(`${ORIGIN}/cover/short.jpg`, {}, testDb.env);
 
     expect(res.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -54,7 +88,7 @@ describe("cover proxy", () => {
       vi.fn(async () => new Response("nope", { status: 200, headers: { "content-type": "text/html" } })),
     );
 
-    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, env);
+    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, testDb.env);
 
     expect(res.status).toBe(404);
   });
@@ -67,7 +101,7 @@ describe("cover proxy", () => {
       }),
     );
 
-    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, env);
+    const res = await app().request(`${ORIGIN}/cover/${EXTERNAL_ID}.jpg`, {}, testDb.env);
 
     expect(res.status).toBe(404);
   });

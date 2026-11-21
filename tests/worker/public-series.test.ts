@@ -10,6 +10,8 @@ let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await createTestDb();
+  // Production sets PUBLIC_URL; without it no forwarded chain is trusted.
+  testDb.env.PUBLIC_URL = ORIGIN;
 }, 30_000);
 
 afterAll(async () => {
@@ -82,7 +84,7 @@ describe("public series", () => {
   it("limits each real client address separately behind the proxy", async () => {
     const application = app();
     const as = (ip: string) => ({
-      headers: { "x-forwarded-host": "chapterping.vercel.app", "x-forwarded-for": `${ip}, 76.76.21.21` },
+      headers: { "x-forwarded-host": "localhost:8787", "x-forwarded-for": `${ip}, 76.76.21.21` },
     });
 
     for (let i = 0; i < 60; i += 1) {
@@ -109,5 +111,63 @@ describe("public series", () => {
       testDb.env,
     );
     expect(neighbour.status).toBe(200);
+  });
+
+  it("does not hand a spoofed forwarded host a fresh bucket", async () => {
+    const application = app();
+    const forged = (ip: string) => ({
+      headers: {
+        "x-forwarded-host": "evil.example",
+        "x-forwarded-for": ip,
+        "cf-connecting-ip": "192.0.2.50",
+      },
+    });
+
+    for (let i = 0; i < 60; i += 1) {
+      const res = await application.request(
+        `${ORIGIN}/api/public/series/${SERIES_ID}`,
+        forged(`203.0.113.${i}`),
+        testDb.env,
+      );
+      expect(res.status).toBe(200);
+    }
+
+    // Every request forged a different address, yet the unspoofable source is one.
+    const limited = await application.request(
+      `${ORIGIN}/api/public/series/${SERIES_ID}`,
+      forged("203.0.113.200"),
+      testDb.env,
+    );
+    expect(limited.status).toBe(429);
+  });
+
+  it("caps one source that keeps rotating forwarded addresses", async () => {
+    const application = app();
+    const as = (ip: string) => ({
+      headers: {
+        "x-forwarded-host": "localhost:8787",
+        "x-forwarded-for": ip,
+        "cf-connecting-ip": "192.0.2.50",
+      },
+    });
+
+    for (let bucket = 0; bucket < 5; bucket += 1) {
+      for (let i = 0; i < 60; i += 1) {
+        const res = await application.request(
+          `${ORIGIN}/api/public/series/${SERIES_ID}`,
+          as(`198.51.100.${bucket}`),
+          testDb.env,
+        );
+        expect(res.status).toBe(200);
+      }
+    }
+
+    // 300 requests from one source with five fresh visitor buckets: the source cap still bites.
+    const blocked = await application.request(
+      `${ORIGIN}/api/public/series/${SERIES_ID}`,
+      as("198.51.100.99"),
+      testDb.env,
+    );
+    expect(blocked.status).toBe(429);
   });
 });
