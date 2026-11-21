@@ -67,7 +67,7 @@ export function Dashboard() {
             </button>
           }
         >
-          No series yet. Add the first one from weebcentral.
+          No series yet. Search for the first one to start tracking.
         </EmptyBlock>
       ) : null}
 

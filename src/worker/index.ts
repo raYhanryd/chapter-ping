@@ -11,6 +11,7 @@ import { ApiError, toErrorBody } from "./lib/errors";
 import { runScheduled } from "./jobs";
 import { readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
+import { canonicalRedirect } from "./lib/canonical";
 import { resolveSessionUser, type AppEnv, type SessionUser } from "./lib/session";
 
 export type { AppEnv };
@@ -25,6 +26,18 @@ export function createApp(options: AppOptions = {}) {
   const resolveUser = options.resolveUser ?? resolveSessionUser;
 
   app.use("*", securityHeaders());
+
+  app.use("*", async (c, next) => {
+    const location = canonicalRedirect({
+      requestUrl: c.req.url,
+      pathname: c.req.path,
+      publicUrl: c.env.PUBLIC_URL,
+      forwardedHost: c.req.header("x-forwarded-host"),
+    });
+    // 302, not 301: a permanently cached redirect would strand visitors if the proxy is ever retired.
+    if (location) return c.redirect(location, 302);
+    await next();
+  });
 
   app.use("/api/*", async (c, next) => {
     if (c.req.path.startsWith("/api/auth/")) {

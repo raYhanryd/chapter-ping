@@ -6,7 +6,7 @@ import { assertSameOrigin } from "../lib/same-origin";
 import { noStore } from "../lib/security";
 import { fetchFeed } from "../lib/feed-fetch";
 import { parseFeed, type ParsedFeed } from "../lib/rss";
-import { parseSeriesUrl } from "../lib/weebcentral";
+import { parseSeriesUrl, searchSeries } from "../lib/weebcentral";
 import { readConfig } from "../lib/env";
 import { accountCount, globalActiveSeriesCount, userSeriesCount } from "../lib/capacity";
 import { checkRateLimit } from "../lib/rate-limit";
@@ -32,6 +32,8 @@ interface SubscriptionRow {
 
 const PREVIEW_LIMIT = 10;
 const PREVIEW_WINDOW_SECONDS = 60;
+const SEARCH_LIMIT = 20;
+const SEARCH_WINDOW_SECONDS = 60;
 const WRITE_LIMIT = 30;
 const WRITE_WINDOW_SECONDS = 60;
 
@@ -112,6 +114,19 @@ seriesRoutes.get("/series", async (c) => {
   }));
 
   return c.json({ items });
+});
+
+seriesRoutes.get("/series/search", async (c) => {
+  const user = requireUser(c);
+  noStore(c);
+
+  const limit = await checkRateLimit(c.env.DB, `series-search:${user.id}`, SEARCH_LIMIT, SEARCH_WINDOW_SECONDS);
+  if (!limit.allowed) {
+    c.header("Retry-After", String(limit.retryAfter));
+    throw new ApiError("RATE_LIMITED", "Too many searches. Wait a moment and try again.", 429);
+  }
+
+  return c.json({ items: await searchSeries(c.req.query("q") ?? "") });
 });
 
 seriesRoutes.post("/series/preview", async (c) => {

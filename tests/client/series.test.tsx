@@ -41,6 +41,7 @@ function dashboard(series: unknown[] = [SERIES_ITEM], overrides: Record<string, 
       return overrides["series"] ?? jsonResponse({ items: series });
     }
     if (method === "GET" && url.pathname === "/api/destinations") return jsonResponse({ destinations: [DESTINATION] });
+    if (method === "GET" && url.pathname === "/api/series/search") return jsonResponse({ items: [] });
     if (method === "POST" && url.pathname === "/api/series/preview") return jsonResponse(PREVIEW);
     if (method === "POST" && url.pathname === "/api/series") return jsonResponse({ series: { id: "s2" } }, 201);
     return undefined;
@@ -76,7 +77,7 @@ describe("dashboard", () => {
 
     renderApp("/dashboard");
 
-    expect(await screen.findByText("No series yet. Add the first one from weebcentral.")).toBeTruthy();
+    expect(await screen.findByText("No series yet. Search for the first one to start tracking.")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Add series" }).length).toBeGreaterThan(0);
   });
 

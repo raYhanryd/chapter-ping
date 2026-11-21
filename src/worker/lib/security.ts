@@ -3,7 +3,7 @@ import type { Env } from "../env";
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "img-src 'self' https://cdn.discordapp.com data:",
+  "img-src 'self' https://cdn.discordapp.com https://temp.compsci88.com data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "connect-src 'self'",

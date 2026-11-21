@@ -59,6 +59,13 @@ export interface PreviewResponse {
   alreadyTracked: boolean;
 }
 
+export interface SeriesSearchResult {
+  externalId: string;
+  title: string;
+  siteUrl: string;
+  coverUrl: string | null;
+}
+
 export interface Destination {
   id: string;
   label: string;
@@ -159,6 +166,9 @@ export const api = {
   status: () => request<GlobalStatus>("/api/status"),
 
   series: () => request<{ items: SeriesItem[] }>("/api/series"),
+
+  searchSeries: (query: string) =>
+    request<{ items: SeriesSearchResult[] }>(`/api/series/search?q=${encodeURIComponent(query)}`),
 
   previewSeries: (url: string) =>
     request<PreviewResponse>("/api/series/preview", {

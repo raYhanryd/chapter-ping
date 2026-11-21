@@ -21,6 +21,16 @@ export function useSeries() {
   return useQuery({ queryKey: queryKeys.series, queryFn: api.series });
 }
 
+export function useSeriesSearch(query: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["series-search", query],
+    queryFn: () => api.searchSeries(query),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
 export function useDestinations() {
   return useQuery({ queryKey: queryKeys.destinations, queryFn: api.destinations });
 }
