@@ -1,9 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../src/worker";
 import type { Env } from "../../src/worker/env";
-import { CONTENT_SECURITY_POLICY } from "../../src/worker/lib/security";
+import { renderAssetHeaders, SECURITY_HEADERS } from "../../src/shared/security-headers";
 import { createTestDb, type TestDb } from "./helpers";
 
 const PROXY = "https://chapterping.vercel.app";
@@ -61,9 +59,13 @@ describe("document routing", () => {
     expect(res.status).toBe(200);
   });
 
-  it("keeps the static asset CSP in step with the Worker's", () => {
-    const headers = readFileSync(join(process.cwd(), "public/_headers"), "utf8");
+  it("renders the static asset headers from the Worker's own definitions", () => {
+    const rendered = renderAssetHeaders();
 
-    expect(headers).toContain(`Content-Security-Policy: ${CONTENT_SECURITY_POLICY}`);
+    expect(rendered.startsWith("/*\n")).toBe(true);
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      expect(rendered).toContain(`  ${name}: ${value}\n`);
+    }
+    expect(rendered).toContain("Strict-Transport-Security: max-age=31536000");
   });
 });

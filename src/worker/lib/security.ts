@@ -1,28 +1,15 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { Env } from "../env";
-
-export const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  "img-src 'self' https://cdn.discordapp.com https://temp.compsci88.com data:",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  "connect-src 'self'",
-  "script-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'none'",
-  "form-action 'self'",
-].join("; ");
+import { SECURITY_HEADERS, STRICT_TRANSPORT_SECURITY } from "../../shared/security-headers";
 
 export function securityHeaders(): MiddlewareHandler<{ Bindings: Env }> {
   return async (c, next) => {
     await next();
-    c.header("X-Content-Type-Options", "nosniff");
-    c.header("X-Frame-Options", "DENY");
-    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
-    c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    c.header("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      c.header(name, value);
+    }
     if (c.env.ENVIRONMENT === "production") {
-      c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      c.header("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY);
     }
   };
 }
