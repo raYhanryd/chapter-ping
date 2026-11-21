@@ -126,6 +126,25 @@ describe("add series", () => {
   });
 });
 
+describe("shared link handoff", () => {
+  it("opens the add dialog with the shared series already previewed", async () => {
+    const fetchMock = dashboard([]);
+
+    renderApp("/dashboard?add=S1");
+
+    const dialog = await screen.findByRole("dialog", { name: "Add series" });
+    expect(await within(dialog).findByText("One Piece")).toBeTruthy();
+    expect((within(dialog).getByLabelText("Weebcentral link") as HTMLInputElement).value).toBe("S1");
+    expect(within(dialog).getAllByText(/Chapter 1132/).length).toBeGreaterThan(0);
+
+    const preview = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input) === "/api/series/preview" && (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(JSON.parse(String((preview?.[1] as RequestInit).body))).toEqual({ url: "S1" });
+  });
+});
+
 describe("series detail", () => {
   it("shows the schedule and the last delivery attempts for one series", async () => {
     stubApi(({ method, url }) => {

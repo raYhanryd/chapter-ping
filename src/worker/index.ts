@@ -8,9 +8,10 @@ import { meRoutes } from "./api/me";
 import { destinationRoutes } from "./api/destinations";
 import { seriesRoutes } from "./api/series";
 import { publicRoutes } from "./api/public";
+import { coverRoutes } from "./api/cover";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { runScheduled } from "./jobs";
-import { readConfig } from "./lib/env";
+import { publicOrigin, readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
 import { canonicalRedirect } from "./lib/canonical";
 import { injectSocialMeta, seriesSocialMeta, type SeriesMetaRow } from "./lib/social";
@@ -49,7 +50,7 @@ async function serveSeriesDocument(c: AppContext, lookup: SeriesLookup): Promise
     const row = await lookup(c.env.DB, c.req.param("id") ?? "");
     if (!row) return c.html(shell);
 
-    const origin = c.env.PUBLIC_URL?.trim() || c.env.APP_URL;
+    const origin = publicOrigin(c.env);
     // Same policy as the rest of the shell: revalidate, so a new chapter or a
     // deploy shows up in the unfurl immediately instead of up to 5 minutes later.
     c.header("Cache-Control", "public, max-age=0, must-revalidate");
@@ -154,6 +155,7 @@ export function createApp(options: AppOptions = {}) {
   app.route("/api", destinationRoutes);
   app.route("/api", activityRoutes);
   app.route("/api", publicRoutes);
+  app.route("/", coverRoutes);
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);

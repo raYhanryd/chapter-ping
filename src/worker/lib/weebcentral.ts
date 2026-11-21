@@ -15,7 +15,7 @@ export interface SearchResult {
   coverUrl: string | null;
 }
 
-const SERIES_ID = /^[A-Za-z0-9]{10,40}$/;
+export const SERIES_ID = /^[A-Za-z0-9]{10,40}$/;
 
 export interface ParsedSeriesUrl {
   externalId: string;
@@ -68,8 +68,15 @@ export function parseSeriesUrl(input: string): ParsedSeriesUrl {
 /**
  * Weebcentral names its grid cover after the series id, at a path its own
  * search fragment uses. Derived, so a series row does not have to store it.
+ *
+ * Served through our own origin: Discord's fetcher gets challenged by that
+ * host's edge, which showed up as image-less embeds.
  */
-export function seriesCoverUrl(externalId: string): string {
+export function coverPath(externalId: string): string {
+  return `/cover/${externalId}.jpg`;
+}
+
+export function seriesCoverUpstream(externalId: string): string {
   return `https://temp.compsci88.com/cover/fallback/${externalId}.jpg`;
 }
 

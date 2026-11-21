@@ -1,4 +1,4 @@
-import { seriesCoverUrl } from "./weebcentral";
+import { coverPath } from "./weebcentral";
 
 const START = "<!-- social-meta:start -->";
 const END = "<!-- social-meta:end -->";
@@ -82,7 +82,7 @@ export function seriesSocialMeta(row: SeriesMetaRow, origin: string, path: strin
     title: `${row.title} — Chapter Ping`,
     description: `${latest} Track ${row.title} and get pinged the moment the next chapter drops.`,
     url: `${origin}${path}`,
-    imageUrl: seriesCoverUrl(row.external_id),
+    imageUrl: `${origin}${coverPath(row.external_id)}`,
     imageAlt: `Cover of ${row.title}`,
   };
 }

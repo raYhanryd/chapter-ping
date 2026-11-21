@@ -21,6 +21,11 @@ function parseBounded(raw: string | undefined, fallback: number, bounds: { min: 
   return value;
 }
 
+/** The origin browsers and Discord actually see: the proxy when configured. */
+export function publicOrigin(env: Env): string {
+  return env.PUBLIC_URL?.trim() || env.APP_URL;
+}
+
 export function readConfig(env: Env): AppConfig {
   return {
     maxAccounts: parseBounded(env.MAX_ACCOUNTS, DEFAULT_LIMITS.maxAccounts, BOUNDS.maxAccounts),

@@ -1,11 +1,11 @@
 import { MAX_DELIVERY_ATTEMPTS } from "../../shared/constants";
 import type { Env } from "../env";
-import { readConfig } from "../lib/env";
+import { publicOrigin, readConfig } from "../lib/env";
 import { ApiError, sanitizeMessage } from "../lib/errors";
 import { decryptSecret } from "../lib/crypto";
 import { sendWebhook } from "../lib/discord";
 import { buildChapterPayload } from "../lib/payload";
-import { seriesCoverUrl } from "../lib/weebcentral";
+import { coverPath } from "../lib/weebcentral";
 
 const BACKOFF_MINUTES = [1, 5, 15, 60, 180];
 const MAX_RETRY_AFTER_MINUTES = 60;
@@ -111,7 +111,7 @@ export async function deliverDue(env: Env, now: Date, fetchImpl: typeof fetch): 
       chapterLabel: delivery.chapter_label,
       chapterUrl: delivery.chapter_url,
       roleId: delivery.role_id,
-      coverUrl: seriesCoverUrl(delivery.series_external_id),
+      coverUrl: `${publicOrigin(env)}${coverPath(delivery.series_external_id)}`,
       now,
     });
 

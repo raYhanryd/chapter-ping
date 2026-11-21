@@ -63,9 +63,7 @@ describe("public series", () => {
     expect(res.status).toBe(200);
     expect(body.series.id).toBe(SERIES_ID);
     expect(body.series.title).toBe("One Piece");
-    expect(body.series.coverUrl).toBe(
-      `https://temp.compsci88.com/cover/fallback/${EXTERNAL_ID}.jpg`,
-    );
+    expect(body.series.coverUrl).toBe(`http://localhost:8787/cover/${EXTERNAL_ID}.jpg`);
     expect(body.series.siteUrl).toBe(`https://weebcentral.com/series/${EXTERNAL_ID}`);
     expect(body.series.latestChapter).toEqual({
       label: "Chapter 1132",
@@ -81,20 +79,35 @@ describe("public series", () => {
     expect(res.status).toBe(404);
   });
 
-  it("limits a single caller to 60 lookups a minute", async () => {
+  it("limits each real client address separately behind the proxy", async () => {
     const application = app();
+    const as = (ip: string) => ({
+      headers: { "x-forwarded-host": "chapterping.vercel.app", "x-forwarded-for": `${ip}, 76.76.21.21` },
+    });
+
     for (let i = 0; i < 60; i += 1) {
-      const res = await application.request(`${ORIGIN}/api/public/series/${SERIES_ID}`, {}, testDb.env);
+      const res = await application.request(
+        `${ORIGIN}/api/public/series/${SERIES_ID}`,
+        as("203.0.113.7"),
+        testDb.env,
+      );
       expect(res.status).toBe(200);
     }
 
     const limited = await application.request(
       `${ORIGIN}/api/public/series/${SERIES_ID}`,
-      {},
+      as("203.0.113.7"),
       testDb.env,
     );
-
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBeTruthy();
+
+    // The whole point: another visitor is not in the same bucket.
+    const neighbour = await application.request(
+      `${ORIGIN}/api/public/series/${SERIES_ID}`,
+      as("203.0.113.8"),
+      testDb.env,
+    );
+    expect(neighbour.status).toBe(200);
   });
 });

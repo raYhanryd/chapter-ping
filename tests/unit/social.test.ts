@@ -67,7 +67,7 @@ describe("social meta", () => {
       "Chapter 1132 — The Sun God is out. Track One Piece and get pinged the moment the next chapter drops.",
     );
     expect(meta.imageUrl).toBe(
-      "https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg",
+      "https://chapterping.vercel.app/cover/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg",
     );
     expect(meta.url).toBe("https://chapterping.vercel.app/series/abc");
   });

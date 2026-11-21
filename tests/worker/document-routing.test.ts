@@ -123,9 +123,7 @@ describe("document routing", () => {
 
     expect(res.status).toBe(200);
     expect(html).toContain("<title>One Piece — Chapter Ping</title>");
-    expect(html).toContain(
-      'content="https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"',
-    );
+    expect(html).toContain(`content="${PROXY}/cover/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"`);
     expect(html).toContain("Chapter 1132 — The Sun God is out.");
     expect(html).toContain(`content="${PROXY}/series/${SUBSCRIPTION_ID}"`);
     expect(html).not.toContain("social-card.png");
@@ -143,9 +141,7 @@ describe("document routing", () => {
 
     expect(res.status).toBe(200);
     expect(html).toContain("<title>One Piece — Chapter Ping</title>");
-    expect(html).toContain(
-      'content="https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"',
-    );
+    expect(html).toContain(`content="${PROXY}/cover/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"`);
     expect(html).toContain(`content="${PROXY}/s/${SERIES_ID}"`);
   });
 

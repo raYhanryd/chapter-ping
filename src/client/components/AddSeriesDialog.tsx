@@ -1,11 +1,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, messageFor, type PreviewResponse, type SeriesSearchResult } from "../lib/api";
 import { queryKeys, useDestinations, useSeriesSearch } from "../lib/queries";
 import { Dialog, useToast } from "./ui";
 
-export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AddSeriesDialog({
+  open,
+  onClose,
+  initialUrl,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Seeds the check when the dialog is opened from a shared series page. */
+  initialUrl?: string;
+}) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const destinations = useDestinations();
@@ -18,13 +27,13 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
 
   useEffect(() => {
     if (!open) return;
-    setUrl("");
+    setUrl(initialUrl ?? "");
     setQuery("");
     setDebouncedQuery("");
     setPreview(null);
     setDestinationId("");
     setError(null);
-  }, [open]);
+  }, [open, initialUrl]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 350);
@@ -46,6 +55,19 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
     },
     onError: (cause) => setError(messageFor(cause, "Could not read that link.")),
   });
+
+  // A shared link opens straight into the preview, so the only choice left is
+  // where the alerts go.
+  const seeded = useRef("");
+  useEffect(() => {
+    if (!open) {
+      seeded.current = "";
+      return;
+    }
+    if (!initialUrl || seeded.current === initialUrl) return;
+    seeded.current = initialUrl;
+    check.mutate(initialUrl);
+  }, [open, initialUrl, check]);
 
   const add = useMutation({
     mutationFn: () => api.addSeries(url.trim(), destinationId),

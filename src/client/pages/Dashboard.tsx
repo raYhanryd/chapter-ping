@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AddSeriesDialog } from "../components/AddSeriesDialog";
 import {
   CapacityLine,
@@ -20,7 +20,9 @@ export function Dashboard() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const series = useSeries();
-  const [adding, setAdding] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const addId = params.get("add") ?? "";
+  const [adding, setAdding] = useState(Boolean(addId));
   const [removing, setRemoving] = useState<{ id: string; title: string } | null>(null);
 
   const toggle = useMutation({
@@ -38,6 +40,12 @@ export function Dashboard() {
     queryClient.invalidateQueries({ queryKey: queryKeys.series });
     queryClient.invalidateQueries({ queryKey: queryKeys.me });
     toast("Series removed.");
+  }
+
+  function closeAdd() {
+    setAdding(false);
+    // Drop the handoff param so reopening the dialog starts clean.
+    if (addId) setParams({}, { replace: true });
   }
 
   const addButton = (
@@ -142,7 +150,11 @@ export function Dashboard() {
         </div>
       ) : null}
 
-      <AddSeriesDialog open={adding} onClose={() => setAdding(false)} />
+      <AddSeriesDialog
+        open={adding}
+        onClose={closeAdd}
+        initialUrl={addId ? addId : undefined}
+      />
 
       <ConfirmDialog
         open={removing !== null}

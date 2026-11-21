@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../lib/session";
 import { ApiError } from "../lib/errors";
 import { checkRateLimit } from "../lib/rate-limit";
-import { seriesCoverUrl } from "../lib/weebcentral";
+import { coverPath } from "../lib/weebcentral";
+import { clientAddress } from "../lib/client-ip";
+import { publicOrigin } from "../lib/env";
 
 const LOOKUP_LIMIT = 60;
 const LOOKUP_WINDOW_SECONDS = 60;
@@ -22,7 +24,7 @@ export const publicRoutes = new Hono<AppEnv>();
 
 /** Read-only series data for the shareable page. No session required. */
 publicRoutes.get("/public/series/:id", async (c) => {
-  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+  const ip = clientAddress(c.req.raw.headers);
   const limit = await checkRateLimit(c.env.DB, `public-series:${ip}`, LOOKUP_LIMIT, LOOKUP_WINDOW_SECONDS);
   if (!limit.allowed) {
     c.header("Retry-After", String(limit.retryAfter));
@@ -43,7 +45,7 @@ publicRoutes.get("/public/series/:id", async (c) => {
     series: {
       id: row.id,
       title: row.title,
-      coverUrl: seriesCoverUrl(row.external_id),
+      coverUrl: `${publicOrigin(c.env)}${coverPath(row.external_id)}`,
       siteUrl: row.site_url,
       latestChapter: row.latest_chapter_label
         ? {

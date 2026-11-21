@@ -37,9 +37,9 @@ describe("public series page", () => {
       SERIES.series.coverUrl,
     );
     expect(screen.getByText("Chapter 1132 is out.")).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: "Continue with Discord" }).getAttribute("href"),
-    ).toBe("/login?next=/dashboard");
+    const cta = screen.getByRole("link", { name: "Continue with Discord" });
+    const next = new URL(cta.getAttribute("href") ?? "", "http://localhost").searchParams.get("next");
+    expect(next).toBe("/dashboard?add=s1");
 
     // A visitor must never be asked for a session on this page.
     expect(fetchMock.calls.some((call) => call.url.pathname === "/api/me")).toBe(false);
