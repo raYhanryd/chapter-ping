@@ -12,6 +12,7 @@ import { runScheduled } from "./jobs";
 import { readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
 import { canonicalRedirect } from "./lib/canonical";
+import { injectSocialMeta, seriesSocialMeta, type SeriesMetaRow } from "./lib/social";
 import { resolveSessionUser, type AppEnv, type SessionUser } from "./lib/session";
 
 export type { AppEnv };
@@ -113,6 +114,35 @@ export function createApp(options: AppOptions = {}) {
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
+  });
+
+  // A shared series page unfurls with its own cover and latest chapter instead
+  // of the generic card. The shell is the same document; only the marked social
+  // block changes, so anything that goes wrong here still renders the app.
+  app.get("/series/:id", async (c) => {
+    const shell = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url)).then((res) =>
+      res.text(),
+    );
+
+    try {
+      const row = await c.env.DB.prepare(
+        `SELECT se.title, se.external_id, se.latest_chapter_label, se.latest_chapter_title
+         FROM subscriptions s
+         JOIN series se ON se.id = s.series_id
+         WHERE s.id = ?`,
+      )
+        .bind(c.req.param("id"))
+        .first<SeriesMetaRow>();
+      if (!row) return c.html(shell);
+
+      const origin = c.env.PUBLIC_URL?.trim() || c.env.APP_URL;
+      // Same policy as the rest of the shell: revalidate, so a new chapter or a
+      // deploy shows up in the unfurl immediately instead of up to 5 minutes later.
+      c.header("Cache-Control", "public, max-age=0, must-revalidate");
+      return c.html(injectSocialMeta(shell, seriesSocialMeta(row, origin, c.req.path)));
+    } catch {
+      return c.html(shell);
+    }
   });
 
   // Documents are routed here by assets.run_worker_first so the canonical check

@@ -65,6 +65,14 @@ export function parseSeriesUrl(input: string): ParsedSeriesUrl {
   return { externalId, siteUrl, feedUrl: `${siteUrl}/rss` };
 }
 
+/**
+ * Weebcentral names its grid cover after the series id, at a path its own
+ * search fragment uses. Derived, so a series row does not have to store it.
+ */
+export function seriesCoverUrl(externalId: string): string {
+  return `https://temp.compsci88.com/cover/fallback/${externalId}.jpg`;
+}
+
 /** Weebcentral's own search fragment. An empty query returns a browsable list. */
 export function searchUrl(query: string): string {
   const params = new URLSearchParams({

@@ -18,6 +18,7 @@
     "test:e2e": "playwright test",
     "load-test": "node scripts/load-test.mjs",
     "docs": "node scripts/docs.mjs",
+    "social-card": "node scripts/social-card.mjs",
     "setup:discord": "node scripts/set-discord.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply chapter-tracker-web --local",

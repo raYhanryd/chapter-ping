@@ -6,7 +6,52 @@ import { createTestDb, type TestDb } from "./helpers";
 
 const PROXY = "https://chapterping.vercel.app";
 const WORKER = "https://chapter-tracker-web.chapterping.workers.dev";
-const DOCUMENT = "<!doctype html><title>Chapter Ping</title>";
+const DOCUMENT = [
+  "<!doctype html><html><head>",
+  "<!-- social-meta:start -->",
+  "<title>Chapter Ping</title>",
+  "<!-- social-meta:end -->",
+  '</head><body><div id="root"></div></body></html>',
+].join("");
+
+const SERIES_ID = "series-1";
+const SUBSCRIPTION_ID = "sub-1";
+
+/** A tracked series, with the destination its subscription needs to exist. */
+async function seedSeries() {
+  const now = new Date().toISOString();
+  const externalId = "01J76XY7E9FNDZ1DBBM6PBJPFK";
+
+  await testDb.db
+    .prepare(
+      "INSERT INTO destinations (id, user_id, label, webhook_ciphertext, webhook_iv, webhook_fingerprint, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind("dest-1", "user-1", "Anime", "ciphertext", "iv", "fingerprint", now, now)
+    .run();
+  await testDb.db
+    .prepare(
+      "INSERT INTO series (id, source, external_id, title, feed_url, site_url, latest_chapter_label, latest_chapter_title, next_check_at, active, created_at, updated_at) VALUES (?, 'weebcentral', ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+    )
+    .bind(
+      SERIES_ID,
+      externalId,
+      "One Piece",
+      `https://weebcentral.com/series/${externalId}/rss`,
+      `https://weebcentral.com/series/${externalId}`,
+      "Chapter 1132",
+      "The Sun God",
+      now,
+      now,
+      now,
+    )
+    .run();
+  await testDb.db
+    .prepare(
+      "INSERT INTO subscriptions (id, user_id, series_id, destination_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(SUBSCRIPTION_ID, "user-1", SERIES_ID, "dest-1", now, now)
+    .run();
+}
 
 let testDb: TestDb;
 
@@ -57,6 +102,39 @@ describe("document routing", () => {
     const res = await app().request(`${WORKER}/api/health`, {}, env());
 
     expect(res.status).toBe(200);
+  });
+
+  it("unfurls a shared series page with its cover and latest chapter", async () => {
+    await seedSeries();
+
+    const res = await app().request(
+      `${WORKER}/series/${SUBSCRIPTION_ID}`,
+      { headers: { "x-forwarded-host": "chapterping.vercel.app" } },
+      env(),
+    );
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain("<title>One Piece — Chapter Ping</title>");
+    expect(html).toContain(
+      'content="https://temp.compsci88.com/cover/fallback/01J76XY7E9FNDZ1DBBM6PBJPFK.jpg"',
+    );
+    expect(html).toContain("Chapter 1132 — The Sun God is out.");
+    expect(html).toContain(`content="${PROXY}/series/${SUBSCRIPTION_ID}"`);
+    expect(html).not.toContain("social-card.png");
+  });
+
+  it("keeps the generic card when the series cannot be resolved", async () => {
+    const res = await app().request(
+      `${WORKER}/series/not-a-series`,
+      { headers: { "x-forwarded-host": "chapterping.vercel.app" } },
+      env(),
+    );
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain("<title>Chapter Ping</title>");
+    expect(html).not.toContain("temp.compsci88.com");
   });
 
   it("renders the static asset headers from the Worker's own definitions", () => {
