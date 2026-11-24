@@ -24,6 +24,7 @@ export interface GlobalStatus {
 export interface PublicSeriesResponse {
   series: {
     id: string;
+    externalId: string;
     title: string;
     coverUrl: string;
     siteUrl: string;

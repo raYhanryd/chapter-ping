@@ -5,7 +5,8 @@ import { errorResponse, jsonResponse, renderApp, stubApi } from "./helpers";
 
 const SERIES = {
   series: {
-    id: "s1",
+    id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    externalId: "01J76XY7E9FNDZ1DBBM6PBJPFK",
     title: "One Piece",
     coverUrl: "https://temp.compsci88.com/cover/fallback/S1.jpg",
     siteUrl: "https://weebcentral.com/series/S1/One-Piece",
@@ -39,7 +40,7 @@ describe("public series page", () => {
     expect(screen.getByText("Chapter 1132 is out.")).toBeTruthy();
     const cta = screen.getByRole("link", { name: "Continue with Discord" });
     const next = new URL(cta.getAttribute("href") ?? "", "http://localhost").searchParams.get("next");
-    expect(next).toBe("/dashboard?add=s1");
+    expect(next).toBe("/dashboard?add=01J76XY7E9FNDZ1DBBM6PBJPFK");
 
     // A visitor must never be asked for a session on this page.
     expect(fetchMock.calls.some((call) => call.url.pathname === "/api/me")).toBe(false);

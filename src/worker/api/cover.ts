@@ -86,6 +86,7 @@ coverRoutes.get("/cover/:file", async (c) => {
     },
   });
 
-  await cache?.put(cacheKey, response.clone());
+  // A cache failure must not turn a good cover into an error response.
+  if (cache) await cache.put(cacheKey, response.clone()).catch(() => undefined);
   return response;
 });

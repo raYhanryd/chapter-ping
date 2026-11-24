@@ -3,7 +3,7 @@ import { LoadingRows } from "../components/ui";
 import { formatRelative } from "../lib/format";
 import { usePublicSeries } from "../lib/queries";
 
-function ShareHead({ seriesId }: { seriesId?: string }) {
+function ShareHead({ externalId }: { externalId?: string }) {
   return (
     <header className="site-head">
       <Link className="wordmark" to="/">
@@ -11,7 +11,11 @@ function ShareHead({ seriesId }: { seriesId?: string }) {
       </Link>
       <Link
         className="quiet-link"
-        to={seriesId ? `/login?next=${encodeURIComponent(`/dashboard?add=${seriesId}`)}` : "/login"}
+        to={
+          externalId
+            ? `/login?next=${encodeURIComponent(`/dashboard?add=${externalId}`)}`
+            : "/login"
+        }
       >
         Sign in
       </Link>
@@ -54,7 +58,7 @@ export function PublicSeries() {
 
   return (
     <div className="share-shell">
-      <ShareHead seriesId={series.id} />
+      <ShareHead externalId={series.externalId} />
 
       <main className="share">
         <article className="share-series">
@@ -91,7 +95,7 @@ export function PublicSeries() {
             <div className="share-actions">
               <Link
                 className="btn btn-primary"
-                to={`/login?next=${encodeURIComponent(`/dashboard?add=${series.id}`)}`}
+                to={`/login?next=${encodeURIComponent(`/dashboard?add=${series.externalId}`)}`}
               >
                 Continue with Discord
               </Link>

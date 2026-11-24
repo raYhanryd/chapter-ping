@@ -1,136 +1,105 @@
 # Chapter Ping
 
-A free, capacity-capped, multi-series manga chapter alert service for Discord. Sign in with Discord, paste a weebcentral series link, point it at your own webhook, and get one clean embed when a new chapter lands.
+![Chapter Ping — chapter alerts that land in Discord](public/social-card.png)
 
-> **Do not point this app at the same Discord webhook as the older `onepiece-tracker` GitHub Action.** Two independent notifiers on one webhook means duplicate alerts.
+Free Discord alerts when a new manga chapter drops. Pick the series you read on
+[weebcentral](https://weebcentral.com), paste a Discord webhook, and get one clean
+message when a chapter is out.
 
-Free while launch capacity lasts. No card, no ads, no paid tier. Free-domain options are in [`docs/DOMAINS.md`](docs/DOMAINS.md).
+**Live site:** <https://chapterping.vercel.app>
 
-## Status
+## How to use it
 
-Milestone 6 (launch) is live at <https://chapterping.vercel.app>, a Vercel rewrite in front of the Worker at <https://chapter-tracker-web.chapterping.workers.dev>; production D1 is migrated and the cron has run successfully. Sign-in, series, destinations, the scheduler, activity, settings and account deletion are implemented and tested. The remaining live checks are a real Discord sign-in through the new origin and a real webhook test send.
+1. **Sign in with Discord.** One click, no password. It asks for your name and avatar only.
+2. **Add a channel.** In Discord: Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL. Paste that URL into Chapter Ping. No bot to invite, no permissions to grant.
+3. **Pick a series.** Search weebcentral inside the app, choose the cover, and send it to a channel.
+4. **Get the ping.** A cron checks each series about every 30 minutes and posts the chapter number, title and link. Add a role ID if you want the alert to mention a role.
 
-The live Worker and D1 database keep their original internal names (`chapter-tracker-web`) so the current URL, data, and Discord callback stay stable. Chapter Ping is the product name; renaming those resources is a separate deploy-time cutover.
+You can track up to 5 series and send to 2 Discord channels. Pause a series any time; paused series do not use a check slot.
 
-Build docs live in the repo:
+## Why 100 accounts, and why the limits
 
-- `docs/AGENT_BUILD_PROMPT.txt` - the original brief (historical; written before the rename)
-- `docs/superpowers/specs/2026-11-20-chapter-ping-design.md` - design
-- `docs/superpowers/plans/2026-11-20-chapter-ping.md` - milestone plan
-- `docs/DOMAINS.md` - free-domain options and lengths
+Chapter Ping runs entirely on Cloudflare's free tier, and nobody pays for it. The caps are what keep it inside that free tier:
 
-## Free-tier capacity model
+| Limit | Value |
+|---|---|
+| Accounts | 100 (an account counts once it tracks a series) |
+| Series per account | 5 active |
+| Discord destinations per account | 2 |
+| Distinct series across the service | 150 |
+| Check interval | About every 30 minutes |
 
-Default caps, all set by environment variables:
+Cloudflare's free plan allows 100,000 Worker requests a day, and D1 has daily read and write limits. 150 series checked every 30 minutes is 300 feed checks an hour, plus the app and Discord calls. That is the comfortable ceiling. Raising it would mean a bill.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `MAX_ACCOUNTS` | 100 | Accounts with at least one active subscription |
-| `MAX_SERIES_PER_USER` | 5 | Active subscriptions per user |
-| `MAX_DESTINATIONS_PER_USER` | 2 | Webhooks per user |
-| `MAX_ACTIVE_SERIES` | 150 | Distinct series polled globally |
-| `POLL_INTERVAL_MINUTES` | 30 | Target per-series check interval |
-| `CRON_BATCH_SERIES` | 20 | Feed fetches per cron run |
-| `CRON_BATCH_DELIVERIES` | 20 | Discord sends per cron run |
-| `MAX_TEST_SENDS_PER_HOUR` | 5 | Test embeds per destination per hour |
+**There will never be a paid tier.** No card, no ads, no sponsorships, nothing for sale. It is first come, first served: the first 100 accounts that add a series get in. When the spots are full, new sign-ins join a waitlist and are let in as places free up. Existing accounts keep working.
 
-Arithmetic: 150 series at 30 minutes is 300 feed checks/hour. The cron runs every 5 minutes with a 20-feed batch, so 240 checks/hour; sustained maximum load stretches the effective interval to about 37.5 minutes. 100 users at roughly 20 requests/day is about 2,000 Worker requests/day plus 288 cron invocations.
+## Run it yourself
 
-Cloudflare free limits that shape this: 100,000 Worker requests/day, 10 ms CPU per invocation, 50 subrequests, 50 D1 queries per invocation, 5M D1 rows read/day and 100,000 written/day. Static asset requests do not count as Worker requests. Exceeding a daily limit fails requests until the 00:00 UTC reset.
-
-The measured local batch and the 49-query cron budget are in [`docs/CAPACITY.md`](docs/CAPACITY.md). Run it with `npm run load-test`.
-
-Capacity is finite and there is no SLA. When the account cap is reached, a first series add is refused and the account joins the waitlist; existing users keep working.
-
-## Architecture
-
-```text
-Browser SPA (static assets)  ->  Worker /api/*  ->  D1
-                                    |                 ^
-                          Better Auth (Discord)       |
-                                                      |
-Cron */5 * * * *  ->  due series -> weebcentral RSS --+
-                  ->  due deliveries -> Discord webhook
-```
-
-## Local setup
+You need Node 22+, a Cloudflare account, and a Discord application.
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # fill in Discord + secrets
-npm run db:migrate:local
-npm run dev                      # http://localhost:8787
+cp .dev.vars.example .dev.vars
 ```
 
-Health: `curl http://localhost:8787/api/health`.
+Fill in `.dev.vars`:
 
-### Discord OAuth application
+| Variable | Where it comes from |
+|---|---|
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord Developer Portal → your app → OAuth2 |
+| `BETTER_AUTH_SECRET` | `openssl rand -hex 32` |
+| `WEBHOOK_ENCRYPTION_KEY` | `openssl rand -base64 32` |
 
-1. Discord Developer Portal -> Applications -> New Application.
-2. OAuth2 -> add redirects: `http://localhost:8787/api/auth/callback/discord` and `https://chapterping.vercel.app/api/auth/callback/discord`. The Worker's own callback stays registered and keeps working.
-3. Copy the client id and secret into `.dev.vars`. Never commit them.
-
-No bot token, no bot permissions, no privileged intents.
-
-### D1 and migrations
+In the Discord portal, add the redirect `http://localhost:8787/api/auth/callback/discord`. Then:
 
 ```bash
-npx wrangler d1 create chapter-tracker-web      # internal name kept stable; copy database_id into wrangler.jsonc
 npm run db:migrate:local
+npm run dev
+```
+
+Open <http://localhost:8787>. Health check: `curl http://localhost:8787/api/health`.
+
+### Deploy
+
+```bash
+npx wrangler d1 create chapter-tracker-web   # copy database_id into wrangler.jsonc
 npm run db:migrate:remote
+npm run deploy
 ```
 
-### Scheduled handler locally
+Set the production secrets:
 
 ```bash
-npx wrangler dev --test-scheduled
-curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=*/5+*+*+*+*"
+npx wrangler secret put DISCORD_CLIENT_ID
+npx wrangler secret put DISCORD_CLIENT_SECRET
+npx wrangler secret put BETTER_AUTH_SECRET
+npx wrangler secret put WEBHOOK_ENCRYPTION_KEY
 ```
 
-Use Wrangler's `/cdn-cgi/local/scheduled` route. `/__scheduled` is swallowed by the SPA asset fallback.
+`APP_URL`, `PUBLIC_URL` and the capacity caps live in `wrangler.jsonc`. Optional secrets: `ADMIN_DISCORD_IDS` for the owner desk and `ALERT_WEBHOOK_URL` for cron failure alerts.
 
-## Tests
+## Stack
+
+React 19 + Vite single-page app, Hono on Cloudflare Workers, D1 for storage, and one cron trigger every five minutes.
+
+- Discord OAuth with the `identify` scope only.
+- Webhook URLs encrypted at rest with AES-256-GCM and never returned after saving.
+- Every query scoped to the signed-in user; same-origin checks on mutations.
+- CSP, HSTS in production, and rate limits on public endpoints.
+
+## Checks
 
 ```bash
-npm run lint
 npm run typecheck
+npm run lint
 npm test
-npm run test:e2e     # UI milestone onward
 npm run build
-npm run deploy:dry
 ```
 
-All outbound HTTP is mocked in tests; no test contacts Discord or weebcentral.
+All outbound HTTP is mocked in tests; nothing contacts Discord or weebcentral.
 
-## Security model
+## Privacy, terms, license
 
-- Discord OAuth (`identify` only) through Better Auth, sessions in D1, HttpOnly SameSite=Lax cookie, no tokens in localStorage.
-- Every user-owned query scoped to the session user; foreign ids return 404.
-- Exact host allowlists for feeds and webhooks; HTTPS only; no credentials, ports, or fragments; timeouts on every fetch.
-- Webhook URLs encrypted at rest (AES-256-GCM, random IV), never returned after save, never logged.
-- Mutations check same-origin in addition to cookies.
-- CSP, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`, HSTS in production.
+Read [PRIVACY.md](PRIVACY.md) and [TERMS.md](TERMS.md). Deleting your account in Settings removes your sessions, series, destinations and delivery history.
 
-## Privacy and deletion
-
-Account deletion lives in Settings and requires typing `DELETE`. It removes the account, sessions, subscriptions, destinations, deliveries, and any waitlist entry. Shared series and chapter metadata (titles, numbers, links) stays, because other users rely on it. See `PRIVACY.md` and `TERMS.md` -- both are drafts the operator must review before a public launch.
-
-## Known limitations
-
-- Free tier, no SLA, no uptime guarantee; polls may stretch under load.
-- No Discord bot, so channel and role pickers are not possible.
-- weebcentral only; RSS metadata and links only, no chapter content or images.
-- No backfill: the first alert is the next new chapter after you subscribe.
-- No email login or notifications.
-- At most one normal notification per chapter per destination; Discord has no idempotency keys, so a rare ambiguous timeout can duplicate.
-- `docs/` images contain only fake demo data.
-
-## Attribution
-
-Not affiliated with Discord or weebcentral. No chapter content is hosted; alerts link to weebcentral. Respect weebcentral's terms and rate limits.
-
-The vendored `brain/` and `skills/` folders come from the brain.md toolkit (Apache-2.0) and are development tooling only.
-
-## License
-
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE). Not affiliated with weebcentral or Discord; no chapter content is hosted.

@@ -62,6 +62,7 @@ publicRoutes.get("/public/series/:id", async (c) => {
   return c.json({
     series: {
       id: row.id,
+      externalId: row.external_id,
       title: row.title,
       coverUrl: `${publicOrigin(c.env)}${coverPath(row.external_id)}`,
       siteUrl: row.site_url,

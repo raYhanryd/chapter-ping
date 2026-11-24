@@ -55,6 +55,7 @@ describe("public series", () => {
     const body = (await res.json()) as {
       series: {
         id: string;
+        externalId: string;
         title: string;
         coverUrl: string;
         siteUrl: string;
@@ -64,6 +65,7 @@ describe("public series", () => {
 
     expect(res.status).toBe(200);
     expect(body.series.id).toBe(SERIES_ID);
+    expect(body.series.externalId).toBe(EXTERNAL_ID);
     expect(body.series.title).toBe("One Piece");
     expect(body.series.coverUrl).toBe(`http://localhost:8787/cover/${EXTERNAL_ID}.jpg`);
     expect(body.series.siteUrl).toBe(`https://weebcentral.com/series/${EXTERNAL_ID}`);

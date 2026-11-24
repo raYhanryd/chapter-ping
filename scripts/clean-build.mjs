@@ -11,7 +11,7 @@ if (existsSync(target)) {
   process.exit(1);
 }
 
-// vite.config.ts generates this from src/worker/lib/security.ts. Assets are
+// vite.config.ts generates this from src/shared/security-headers.ts. Assets are
 // served before the Worker, so a missing file silently drops every security
 // header on the documents.
 const headers = "dist/client/_headers";

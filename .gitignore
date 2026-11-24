@@ -12,3 +12,20 @@ test-results/
 *.log
 .freebuff/
 brain-install.js
+.tmp-check/
+
+# Local planning, design and agent notes. Kept on disk, not published.
+AGENTS.md
+CLAUDE.md
+BRAIN.md
+BRIEF.md
+DESIGN.md
+PLAN.md
+findings.md
+progress.md
+task_plan.md
+brain/
+skills/
+bin/
+docs/
+prototype/
