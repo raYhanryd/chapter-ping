@@ -15,6 +15,7 @@ brain-install.js
 .tmp-check/
 
 # Local planning, design and agent notes. Kept on disk, not published.
+.notes/
 AGENTS.md
 CLAUDE.md
 BRAIN.md
@@ -24,8 +25,3 @@ PLAN.md
 findings.md
 progress.md
 task_plan.md
-brain/
-skills/
-bin/
-docs/
-prototype/
