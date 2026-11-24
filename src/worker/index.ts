@@ -15,7 +15,12 @@ import { runScheduled } from "./jobs";
 import { publicOrigin, readConfig } from "./lib/env";
 import { securityHeaders } from "./lib/security";
 import { canonicalRedirect } from "./lib/canonical";
-import { injectSocialMeta, seriesSocialMeta, type SeriesMetaRow } from "./lib/social";
+import {
+  injectSocialMeta,
+  landingSocialMeta,
+  seriesSocialMeta,
+  type SeriesMetaRow,
+} from "./lib/social";
 import { resolveSessionUser, type AppContext, type AppEnv, type SessionUser } from "./lib/session";
 
 export type { AppEnv };
@@ -161,6 +166,17 @@ export function createApp(options: AppOptions = {}) {
 
   app.all("/api/*", (c) => {
     return c.json(toErrorBody(new ApiError("NOT_FOUND", "Not found", 404)), 404);
+  });
+
+  // The static shell ships with no origin of its own. Rewrite the card for the
+  // origin this deployment actually serves, so a self-host never unfurls as the
+  // maintainer's site.
+  app.get("/", async (c) => {
+    const shell = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url)).then((res) =>
+      res.text(),
+    );
+    c.header("Cache-Control", "public, max-age=0, must-revalidate");
+    return c.html(injectSocialMeta(shell, landingSocialMeta(publicOrigin(c.env))));
   });
 
   // Shared links unfurl with their own cover and latest chapter instead of the

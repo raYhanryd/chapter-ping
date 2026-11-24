@@ -111,6 +111,22 @@ describe("document routing", () => {
     expect(res.status).toBe(200);
   });
 
+  it("unfurls the landing page with the deployment's own origin", async () => {
+    const selfHosted = {
+      ...env(),
+      PUBLIC_URL: undefined,
+      APP_URL: "https://chapter-ping.example.workers.dev",
+    };
+    const res = await app().request("https://chapter-ping.example.workers.dev/", {}, selfHosted);
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain('content="https://chapter-ping.example.workers.dev/"');
+    expect(html).toContain(
+      'content="https://chapter-ping.example.workers.dev/social-card.png"',
+    );
+  });
+
   it("unfurls a shared series page with its cover and latest chapter", async () => {
     await seedSeries();
 

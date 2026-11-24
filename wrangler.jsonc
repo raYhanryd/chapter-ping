@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Kept stable so the live URL, Discord callback, and D1 data do not move.
-  "name": "chapter-tracker-web",
+  // Self-host default. Change the name if you like.
+  "name": "chapter-ping",
   "main": "src/worker/index.ts",
   "compatibility_date": "2025-10-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,17 +9,10 @@
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    // Documents must reach the Worker or the workers.dev redirect never runs;
+    // Documents must reach the Worker or the per-deployment social tags never run;
     // hashed assets stay on the assets layer so they cost no Worker invocation.
     "run_worker_first": ["/*", "!/assets/*", "!/fonts/*", "!/favicon.svg"]
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "chapter-tracker-web",
-      "database_id": "8417fc6f-4cc9-4578-8f53-9c8b94a3a598"
-    }
-  ],
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
@@ -27,11 +20,8 @@
     "enabled": true
   },
   "vars": {
-    // Product name is Chapter Ping; this URL changes only at a controlled cutover.
-    "APP_URL": "https://chapter-tracker-web.chapterping.workers.dev",
-    // The origin browsers actually use. Drives the auth baseURL, so Discord's
-    // redirect_uri points at the proxy. Unset means "use APP_URL".
-    "PUBLIC_URL": "https://chapterping.vercel.app",
+    // Replace this with the workers.dev URL printed by your first deploy.
+    "APP_URL": "https://chapter-ping.YOUR-SUBDOMAIN.workers.dev",
     "ENVIRONMENT": "production",
     "MAX_ACCOUNTS": "100",
     "MAX_SERIES_PER_USER": "5",
@@ -41,5 +31,44 @@
     "CRON_BATCH_SERIES": "20",
     "CRON_BATCH_DELIVERIES": "20",
     "MAX_TEST_SENDS_PER_HOUR": "5"
+  },
+  // Create your own database, then paste its id here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chapter-ping",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  // The maintainer's deployment. Self-hosters can delete this block.
+  "env": {
+    "production": {
+      "name": "chapter-tracker-web",
+      "triggers": {
+        "crons": ["*/5 * * * *"]
+      },
+      "vars": {
+        "APP_URL": "https://chapter-tracker-web.chapterping.workers.dev",
+        // The origin browsers actually use. Drives the auth baseURL, so Discord's
+        // redirect_uri points at the proxy. Unset means "use APP_URL".
+        "PUBLIC_URL": "https://chapterping.vercel.app",
+        "ENVIRONMENT": "production",
+        "MAX_ACCOUNTS": "100",
+        "MAX_SERIES_PER_USER": "5",
+        "MAX_DESTINATIONS_PER_USER": "2",
+        "MAX_ACTIVE_SERIES": "150",
+        "POLL_INTERVAL_MINUTES": "30",
+        "CRON_BATCH_SERIES": "20",
+        "CRON_BATCH_DELIVERIES": "20",
+        "MAX_TEST_SENDS_PER_HOUR": "5"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "chapter-tracker-web",
+          "database_id": "8417fc6f-4cc9-4578-8f53-9c8b94a3a598"
+        }
+      ]
+    }
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   escapeHtml,
   injectSocialMeta,
+  landingSocialMeta,
   seriesSocialMeta,
   type SocialMeta,
 } from "../../src/worker/lib/social";
@@ -51,6 +52,13 @@ describe("social meta", () => {
         '<meta name="twitter:image" content="https://temp.compsci88.com/cover/fallback/abc.jpg" />\n    ' +
         "<!-- social-meta:end --></head>",
     );
+  });
+
+  it("points the landing card at the deployment's own origin", () => {
+    const meta = landingSocialMeta("https://chapter-ping.example.workers.dev");
+
+    expect(meta.url).toBe("https://chapter-ping.example.workers.dev/");
+    expect(meta.imageUrl).toBe("https://chapter-ping.example.workers.dev/social-card.png");
   });
 
   it("leaves a document without markers alone", () => {

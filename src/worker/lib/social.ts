@@ -57,6 +57,20 @@ export function injectSocialMeta(html: string, meta: SocialMeta): string {
   return `${html.slice(0, start)}${renderSocialMeta(meta)}${html.slice(end + END.length)}`;
 }
 
+/** The generic card, rewritten per deployment so a self-host never points at another origin. */
+export function landingSocialMeta(origin: string): SocialMeta {
+  return {
+    title: "Chapter Ping — chapter alerts that land in Discord",
+    description:
+      "Track the series you read on weebcentral and get a Discord ping the moment a new chapter drops. Free for the first 100 accounts.",
+    url: `${origin}/`,
+    imageUrl: `${origin}/social-card.png`,
+    imageAlt: "Chapter Ping: an example Discord alert for One Piece chapter 1132.",
+    imageWidth: 1200,
+    imageHeight: 630,
+  };
+}
+
 export interface SeriesMetaRow {
   title: string;
   external_id: string;

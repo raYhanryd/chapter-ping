@@ -1,13 +1,24 @@
 // The Cloudflare Vite plugin emits dist/<worker>/.dev.vars so `wrangler dev` can
-// read local secrets from the build output. That file must never ship, so drop it
-// after every build and fail loudly if it survives.
-import { existsSync, readFileSync, rmSync } from "node:fs";
+// read local secrets from the build output. That file must never ship. The
+// directory follows the worker name, so check every output directory.
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 
-const target = "dist/chapter_tracker_web/.dev.vars";
-rmSync(target, { force: true });
+const outputs = existsSync("dist")
+  ? readdirSync("dist", { withFileTypes: true }).filter((entry) => entry.isDirectory())
+  : [];
 
-if (existsSync(target)) {
-  console.error(`build cleanup failed: ${target} is still present`);
+let removed = 0;
+for (const output of outputs) {
+  const target = `dist/${output.name}/.dev.vars`;
+  if (existsSync(target)) {
+    rmSync(target, { force: true });
+    removed += 1;
+  }
+}
+
+const leaked = outputs.filter((output) => existsSync(`dist/${output.name}/.dev.vars`));
+if (leaked.length > 0) {
+  console.error(`build cleanup failed: .dev.vars is still present in ${leaked.map((o) => o.name).join(", ")}`);
   process.exit(1);
 }
 
@@ -24,4 +35,4 @@ if (!readFileSync(headers, "utf8").includes("Content-Security-Policy:")) {
   process.exit(1);
 }
 
-console.log(`build cleanup: removed ${target}, verified ${headers}`);
+console.log(`build cleanup: removed ${removed} .dev.vars, verified ${headers}`);

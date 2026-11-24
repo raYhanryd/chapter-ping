@@ -61,11 +61,15 @@ Open <http://localhost:8787>. Health check: `curl http://localhost:8787/api/heal
 
 ### Deploy
 
+The top-level config is a self-host default: worker `chapter-ping`, database `chapter-ping`, and a placeholder `APP_URL`. The `env.production` block is the maintainer's own deployment; self-hosters can ignore or delete it.
+
 ```bash
-npx wrangler d1 create chapter-tracker-web   # copy database_id into wrangler.jsonc
-npm run db:migrate:remote
-npm run deploy
+npx wrangler d1 create chapter-ping   # paste the id into the top-level d1_databases block
+npx wrangler d1 migrations apply chapter-ping --remote
+npm run deploy:self
 ```
+
+After the first deploy, replace `YOUR-SUBDOMAIN` in `APP_URL` with the workers.dev URL Wrangler printed, then run `npm run deploy:self` again.
 
 Set the production secrets:
 

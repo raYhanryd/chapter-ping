@@ -21,10 +21,11 @@
     "social-card": "node scripts/social-card.mjs",
     "setup:discord": "node scripts/set-discord.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply chapter-tracker-web --local",
+    "db:migrate:local": "wrangler d1 migrations apply chapter-ping --local",
     "db:migrate:remote": "wrangler d1 migrations apply chapter-tracker-web --remote",
-    "deploy": "npm run build && wrangler deploy",
-    "deploy:dry": "npm run build && wrangler deploy --dry-run"
+    "deploy": "npm run build && wrangler deploy --config wrangler.jsonc --env production",
+    "deploy:self": "npm run build && wrangler deploy --config wrangler.jsonc",
+    "deploy:dry": "npm run build && wrangler deploy --dry-run --config wrangler.jsonc --env production"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
