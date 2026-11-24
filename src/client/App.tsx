@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/Shell";
 import { ToastProvider } from "./components/ui";
 import { Activity } from "./pages/Activity";
+import { Admin } from "./pages/Admin";
 import { Dashboard } from "./pages/Dashboard";
 import { Destinations } from "./pages/Destinations";
 import { Landing } from "./pages/Landing";
@@ -26,6 +27,7 @@ export function AppRoutes() {
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

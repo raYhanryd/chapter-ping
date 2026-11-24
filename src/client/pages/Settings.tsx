@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { ConfirmDialog, ErrorBlock, LoadingRows, Page } from "../components/ui";
 import { api } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -66,10 +66,17 @@ export function Settings() {
           {capacity.accountsUsed} of {capacity.accountsMax} launch spots in use. {capacity.activeSeries} of{" "}
           {capacity.activeSeriesMax} tracked series are active across the service.
         </p>
-        <p>
-          This account can track {capacity.seriesPerUser} series across {capacity.destinationsPerUser}{" "}
-          destinations. Paused series stay in your list but do not use a check slot.
-        </p>
+        {me.data.admin ? (
+          <p>
+            This is the owner account. Series, destination and rate limits do not apply.{" "}
+            <Link to="/admin">Open the service desk</Link>.
+          </p>
+        ) : (
+          <p>
+            This account can track {capacity.seriesPerUser} series across {capacity.destinationsPerUser}{" "}
+            destinations. Paused series stay in your list but do not use a check slot.
+          </p>
+        )}
       </section>
 
       <section className="settings-block">

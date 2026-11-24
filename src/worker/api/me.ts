@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
+import { isAdmin } from "../lib/admin";
 import { readConfig } from "../lib/env";
 import { noStore } from "../lib/security";
 import { requireUser, type SessionUser } from "../lib/session";
@@ -26,6 +27,7 @@ meRoutes.get("/me", async (c) => {
 
   return c.json({
     user: { id: user.id, name: user.name, image: user.image },
+    admin: isAdmin(c.env, user),
     createdAt: profile ? new Date(profile.created_at).toISOString() : null,
     capacity: {
       accountsUsed: accounts?.count ?? 0,

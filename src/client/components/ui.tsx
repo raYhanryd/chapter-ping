@@ -64,8 +64,17 @@ export function CapacityLine() {
   const activeSeries = series.data.items.filter((item) => item.active).length;
   return (
     <p className="capacity num">
-      {activeSeries} of {capacity.seriesPerUser} series. {capacity.accountsUsed} of{" "}
-      {capacity.accountsMax} launch spots in use.
+      {me.data.admin ? (
+        <>
+          {activeSeries} series. No cap on the owner account. {capacity.accountsUsed} of{" "}
+          {capacity.accountsMax} launch spots in use.
+        </>
+      ) : (
+        <>
+          {activeSeries} of {capacity.seriesPerUser} series. {capacity.accountsUsed} of{" "}
+          {capacity.accountsMax} launch spots in use.
+        </>
+      )}
     </p>
   );
 }

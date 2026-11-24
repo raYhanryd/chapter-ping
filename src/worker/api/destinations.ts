@@ -6,6 +6,7 @@ import { ApiError } from "../lib/errors";
 import { assertSameOrigin } from "../lib/same-origin";
 import { noStore } from "../lib/security";
 import { readConfig } from "../lib/env";
+import { isAdmin } from "../lib/admin";
 import { userDestinationCount } from "../lib/capacity";
 import { checkRateLimit } from "../lib/rate-limit";
 import { decryptSecret, encryptSecret, sha256Hex } from "../lib/crypto";
@@ -66,6 +67,7 @@ async function loadOwned(db: D1Database, userId: string, id: string): Promise<De
 
 async function writeLimit(c: AppContext): Promise<void> {
   const user = requireUser(c);
+  if (isAdmin(c.env, user)) return;
   const limit = await checkRateLimit(c.env.DB, `destinations-write:${user.id}`, 10, 60);
   if (!limit.allowed) {
     c.header("Retry-After", String(limit.retryAfter));
@@ -103,7 +105,7 @@ destinationRoutes.post("/destinations", async (c) => {
   const labelField = readField(body, "label");
 
   const config = readConfig(c.env);
-  if ((await userDestinationCount(c.env.DB, user.id)) >= config.maxDestinationsPerUser) {
+  if (!isAdmin(c.env, user) && (await userDestinationCount(c.env.DB, user.id)) >= config.maxDestinationsPerUser) {
     throw new ApiError(
       "DESTINATION_LIMIT",
       `You can save ${config.maxDestinationsPerUser} destinations. Remove one to add another.`,
@@ -257,15 +259,17 @@ destinationRoutes.post("/destinations/:id/test", async (c) => {
 
   const existing = await loadOwned(c.env.DB, user.id, c.req.param("id"));
   const config = readConfig(c.env);
-  const limit = await checkRateLimit(
-    c.env.DB,
-    `test-send:${existing.id}`,
-    config.maxTestSendsPerHour,
-    3600,
-  );
-  if (!limit.allowed) {
-    c.header("Retry-After", String(limit.retryAfter));
-    throw new ApiError("RATE_LIMITED", "Too many test messages. Try again later.", 429);
+  if (!isAdmin(c.env, user)) {
+    const limit = await checkRateLimit(
+      c.env.DB,
+      `test-send:${existing.id}`,
+      config.maxTestSendsPerHour,
+      3600,
+    );
+    if (!limit.allowed) {
+      c.header("Retry-After", String(limit.retryAfter));
+      throw new ApiError("RATE_LIMITED", "Too many test messages. Try again later.", 429);
+    }
   }
 
   let url: string;

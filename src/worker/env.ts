@@ -12,6 +12,8 @@ export interface Env {
   WEBHOOK_ENCRYPTION_KEY?: string;
   /** Discord webhook the operator is paged on. Unset means no alerting. */
   ALERT_WEBHOOK_URL?: string;
+  /** Comma-separated Discord ids with the owner desk and no caps. Unset means nobody. */
+  ADMIN_DISCORD_IDS?: string;
   MAX_ACCOUNTS?: string;
   MAX_SERIES_PER_USER?: string;
   MAX_DESTINATIONS_PER_USER?: string;

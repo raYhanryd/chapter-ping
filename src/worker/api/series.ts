@@ -8,6 +8,7 @@ import { fetchFeed } from "../lib/feed-fetch";
 import { parseFeed, type ParsedFeed } from "../lib/rss";
 import { parseSeriesUrl, searchSeries } from "../lib/weebcentral";
 import { readConfig } from "../lib/env";
+import { isAdmin } from "../lib/admin";
 import { accountCount, globalActiveSeriesCount, userSeriesCount } from "../lib/capacity";
 import { checkRateLimit } from "../lib/rate-limit";
 
@@ -39,6 +40,7 @@ const WRITE_WINDOW_SECONDS = 60;
 
 async function writeLimit(c: AppContext): Promise<void> {
   const user = requireUser(c);
+  if (isAdmin(c.env, user)) return;
   const limit = await checkRateLimit(c.env.DB, `series-write:${user.id}`, WRITE_LIMIT, WRITE_WINDOW_SECONDS);
   if (!limit.allowed) {
     c.header("Retry-After", String(limit.retryAfter));
@@ -120,10 +122,12 @@ seriesRoutes.get("/series/search", async (c) => {
   const user = requireUser(c);
   noStore(c);
 
-  const limit = await checkRateLimit(c.env.DB, `series-search:${user.id}`, SEARCH_LIMIT, SEARCH_WINDOW_SECONDS);
-  if (!limit.allowed) {
-    c.header("Retry-After", String(limit.retryAfter));
-    throw new ApiError("RATE_LIMITED", "Too many searches. Wait a moment and try again.", 429);
+  if (!isAdmin(c.env, user)) {
+    const limit = await checkRateLimit(c.env.DB, `series-search:${user.id}`, SEARCH_LIMIT, SEARCH_WINDOW_SECONDS);
+    if (!limit.allowed) {
+      c.header("Retry-After", String(limit.retryAfter));
+      throw new ApiError("RATE_LIMITED", "Too many searches. Wait a moment and try again.", 429);
+    }
   }
 
   return c.json({ items: await searchSeries(c.req.query("q") ?? "") });
@@ -134,10 +138,12 @@ seriesRoutes.post("/series/preview", async (c) => {
   const user = requireUser(c);
   noStore(c);
 
-  const limit = await checkRateLimit(c.env.DB, `series-preview:${user.id}`, PREVIEW_LIMIT, PREVIEW_WINDOW_SECONDS);
-  if (!limit.allowed) {
-    c.header("Retry-After", String(limit.retryAfter));
-    throw new ApiError("RATE_LIMITED", "Too many checks. Wait a moment and try again.", 429);
+  if (!isAdmin(c.env, user)) {
+    const limit = await checkRateLimit(c.env.DB, `series-preview:${user.id}`, PREVIEW_LIMIT, PREVIEW_WINDOW_SECONDS);
+    if (!limit.allowed) {
+      c.header("Retry-After", String(limit.retryAfter));
+      throw new ApiError("RATE_LIMITED", "Too many checks. Wait a moment and try again.", 429);
+    }
   }
 
   const body: unknown = await c.req.json().catch(() => null);
@@ -193,29 +199,32 @@ seriesRoutes.post("/series", async (c) => {
   }
 
   const config = readConfig(c.env);
-  const [userSeries, globalActive, accounts] = await Promise.all([
-    userSeriesCount(c.env.DB, user.id),
-    globalActiveSeriesCount(c.env.DB),
-    accountCount(c.env.DB),
-  ]);
+  // The owner account skips every capacity gate, including the global caps.
+  if (!isAdmin(c.env, user)) {
+    const [userSeries, globalActive, accounts] = await Promise.all([
+      userSeriesCount(c.env.DB, user.id),
+      globalActiveSeriesCount(c.env.DB),
+      accountCount(c.env.DB),
+    ]);
 
-  if (userSeries >= config.maxSeriesPerUser) {
-    throw new ApiError(
-      "SERIES_LIMIT",
-      `You can track ${config.maxSeriesPerUser} series on this plan. Remove one to add another.`,
-      409,
-    );
-  }
-  if ((!existing || existing.active === 0) && globalActive >= config.maxActiveSeries) {
-    throw new ApiError("SERIES_CAPACITY_REACHED", "Tracked-series capacity is full right now. Try again later.", 409);
-  }
-  if (accounts >= config.maxAccounts && userSeries === 0) {
-    await c.env.DB.prepare(
-      "INSERT INTO waitlist (id, discord_id, username, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(discord_id) DO NOTHING",
-    )
-      .bind(crypto.randomUUID(), user.discordId ?? user.id, user.name, new Date().toISOString())
-      .run();
-    throw new ApiError("CAPACITY_REACHED", "Launch capacity is full. You are on the waitlist.", 409);
+    if (userSeries >= config.maxSeriesPerUser) {
+      throw new ApiError(
+        "SERIES_LIMIT",
+        `You can track ${config.maxSeriesPerUser} series on this plan. Remove one to add another.`,
+        409,
+      );
+    }
+    if ((!existing || existing.active === 0) && globalActive >= config.maxActiveSeries) {
+      throw new ApiError("SERIES_CAPACITY_REACHED", "Tracked-series capacity is full right now. Try again later.", 409);
+    }
+    if (accounts >= config.maxAccounts && userSeries === 0) {
+      await c.env.DB.prepare(
+        "INSERT INTO waitlist (id, discord_id, username, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(discord_id) DO NOTHING",
+      )
+        .bind(crypto.randomUUID(), user.discordId ?? user.id, user.name, new Date().toISOString())
+        .run();
+      throw new ApiError("CAPACITY_REACHED", "Launch capacity is full. You are on the waitlist.", 409);
+    }
   }
 
   const feed = await loadFeed(parsed.feedUrl);

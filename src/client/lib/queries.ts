@@ -13,6 +13,10 @@ export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: api.me, retry: false });
 }
 
+export function useAdminOverview() {
+  return useQuery({ queryKey: ["admin-overview"], queryFn: api.adminOverview, retry: false });
+}
+
 export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: api.status, retry: false });
 }

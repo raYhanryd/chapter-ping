@@ -87,6 +87,7 @@ export function renderApp(route = "/"): ReturnType<typeof render> {
 
 export const ME = {
   user: { id: "u1", name: "Ray Reader", image: null },
+  admin: false,
   createdAt: "2026-11-01T10:00:00.000Z",
   capacity: {
     accountsUsed: 3,

@@ -100,6 +100,7 @@ export function AppShell() {
   }
 
   const name = me.data.user.name || "Discord member";
+  const links = me.data.admin ? [...sections, { to: "/admin", label: "Admin" }] : sections;
 
   return (
     <div className="app-shell">
@@ -109,7 +110,7 @@ export function AppShell() {
         </NavLink>
 
         <nav className="rail-nav" aria-label="Primary">
-          {sections.map((section) => (
+          {links.map((section) => (
             <NavLink
               key={section.to}
               to={section.to}
@@ -158,7 +159,7 @@ export function AppShell() {
       </main>
 
       <nav className="mobile-nav" aria-label="Mobile">
-        {sections.map((section) => (
+        {links.map((section) => (
           <NavLink
             key={section.to}
             to={section.to}

@@ -9,6 +9,7 @@ import { destinationRoutes } from "./api/destinations";
 import { seriesRoutes } from "./api/series";
 import { publicRoutes } from "./api/public";
 import { coverRoutes } from "./api/cover";
+import { adminRoutes } from "./api/admin";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { runScheduled } from "./jobs";
 import { publicOrigin, readConfig } from "./lib/env";
@@ -154,6 +155,7 @@ export function createApp(options: AppOptions = {}) {
   app.route("/api", seriesRoutes);
   app.route("/api", destinationRoutes);
   app.route("/api", activityRoutes);
+  app.route("/api", adminRoutes);
   app.route("/api", publicRoutes);
   app.route("/", coverRoutes);
 

@@ -21,6 +21,11 @@ WEBHOOK_ENCRYPTION_KEY=
 #   wrangler secret put ALERT_WEBHOOK_URL
 # ALERT_WEBHOOK_URL=
 
+# Discord user ids that get the owner desk and skip every cap and rate limit.
+# Comma-separated. Unset means nobody is an admin. In production set it with
+#   wrangler secret put ADMIN_DISCORD_IDS
+# ADMIN_DISCORD_IDS=
+
 # Capacity defaults. Omit any line to use the built-in default.
 MAX_ACCOUNTS=100
 MAX_SERIES_PER_USER=5

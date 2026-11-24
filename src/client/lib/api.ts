@@ -1,5 +1,6 @@
 export interface MeResponse {
   user: { id: string; name: string; image: string | null };
+  admin: boolean;
   createdAt: string | null;
   capacity: {
     accountsUsed: number;
@@ -117,6 +118,53 @@ export interface ActivityFilters {
   seriesId?: string;
   cursor?: string;
   limit?: number;
+}
+
+export interface AdminOverview {
+  stats: {
+    users: number;
+    newUsers7d: number;
+    waitlist: number;
+    subscriptions: { active: number; total: number };
+    series: { active: number; total: number; withErrors: number };
+    destinations: { active: number; disabled: number; total: number };
+    chapters: number;
+    deliveries: {
+      sent24h: number;
+      retry24h: number;
+      failed24h: number;
+      pending24h: number;
+      skipped24h: number;
+      sentTotal: number;
+      failedTotal: number;
+      pending: number;
+      retry: number;
+    };
+    cron: { lastRunAt: string | null; healthy: boolean };
+  };
+  users: {
+    id: string;
+    name: string;
+    discordId: string | null;
+    createdAt: string;
+    lastSeenAt: string | null;
+    seriesActive: number;
+    seriesTotal: number;
+    destinations: number;
+    waitlisted: boolean;
+  }[];
+  topSeries: { id: string; title: string; subscribers: number }[];
+  runs: {
+    id: string;
+    startedAt: string;
+    finishedAt: string | null;
+    status: string;
+    feedsChecked: number;
+    chaptersFound: number;
+    deliveriesSent: number;
+    errors: number;
+    detail: string | null;
+  }[];
 }
 
 interface ApiErrorBody {
@@ -238,6 +286,8 @@ export const api = {
     const query = search.toString();
     return request<ActivityPage>(`/api/activity${query ? `?${query}` : ""}`);
   },
+
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
 
   deleteAccount: (confirm: string) =>
     request<void>("/api/account/delete", {
